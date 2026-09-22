@@ -1,0 +1,31 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a2de42e0a007d73439adb3f03991c113, type: 3}
+  m_Name: Amber_Trooper
+  m_EditorClassIdentifier: 
+  minionName: Amber Trooper
+  role: 0
+  prefab: {fileID: 8924671018884241433, guid: b1c5db0ca8f6bc74a9b5a7508312c7e6, type: 3}
+  maxHealth: 130
+  moveSpeed: 2.1
+  waypointTolerance: 0.6
+  attackDamage: 12
+  attackInterval: 1.2
+  attackRange: 9
+  detectionRange: 12
+  maxChaseDistance: 10
+  healAmount: 20
+  healInterval: 2
+  healRange: 6
+  medicStandoff: 3
+  soulValue: 10
+  soulDrops: 1

@@ -1,0 +1,31 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a2de42e0a007d73439adb3f03991c113, type: 3}
+  m_Name: Sapphire_Medic
+  m_EditorClassIdentifier: 
+  minionName: Sapphire Medic
+  role: 2
+  prefab: {fileID: 5056622827190039445, guid: 3d070dd1f8d2ed2418b657afe04fffec, type: 3}
+  maxHealth: 90
+  moveSpeed: 2.2
+  waypointTolerance: 0.6
+  attackDamage: 0
+  attackInterval: 1.5
+  attackRange: 0
+  detectionRange: 8
+  maxChaseDistance: 10
+  healAmount: 25
+  healInterval: 2
+  healRange: 6
+  medicStandoff: 3
+  soulValue: 25
+  soulDrops: 2

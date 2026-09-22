@@ -1,0 +1,31 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a2de42e0a007d73439adb3f03991c113, type: 3}
+  m_Name: Amber_Melee
+  m_EditorClassIdentifier: 
+  minionName: Amber Melee
+  role: 1
+  prefab: {fileID: 4326980737781888833, guid: 5d2f4a7fdcf03e94d9758db8cad0fd45, type: 3}
+  maxHealth: 220
+  moveSpeed: 2.4
+  waypointTolerance: 0.6
+  attackDamage: 22
+  attackInterval: 1
+  attackRange: 2.2
+  detectionRange: 7
+  maxChaseDistance: 10
+  healAmount: 20
+  healInterval: 2
+  healRange: 6
+  medicStandoff: 3
+  soulValue: 14
+  soulDrops: 1
