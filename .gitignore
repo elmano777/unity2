@@ -29,3 +29,7 @@
 *.aab
 *.unitypackage
 crashlytics-build.properties
+
+# Autogenerados en tiempo de ejecucion
+RuntimeActionBindings.json
+Assets/StreamingAssets/RuntimeActionBindings.json*
