@@ -1,21 +1,31 @@
 using System.Collections;
+using TMPro;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.SceneManagement;
+using UnityEngine.UI;
 
 /// <summary>
-/// Title screen: waits for either controller trigger (or Space/Enter on keyboard for desktop testing),
-/// fades to black and loads the Hero Select scene.
+/// Title screen with the two entry points of RF-01: "Partida online" and "Mi misión".
+/// Both lead to the hero select for now (the guided practice and the online room are later deliverables);
+/// "Mi misión" remembers the choice in PlayerPrefs and is flagged as recommended until the practice
+/// has been completed (RF-04). Space/Enter on keyboard starts "Partida online" for desktop testing.
 /// </summary>
 public class TitleScreenManager : MonoBehaviour
 {
+    /// <summary>PlayerPrefs key: 1 once the player has finished the guided practice.</summary>
+    public const string MissionCompletedKey = "MissionCompleted";
+
+    /// <summary>PlayerPrefs key: 1 when the player entered through "Mi misión" (practice requested).</summary>
+    public const string MissionRequestedKey = "MissionRequested";
+
     [SerializeField] private string nextSceneName = "HeroSelect";
 
-    [Header("Input (XRI Default Input Actions)")]
-    [Tooltip("e.g. XRI Left Interaction/Activate (trigger).")]
-    [SerializeField] private InputActionReference leftTriggerAction;
-    [Tooltip("e.g. XRI Right Interaction/Activate (trigger).")]
-    [SerializeField] private InputActionReference rightTriggerAction;
+    [Header("Buttons")]
+    [SerializeField] private Button onlineButton;
+    [SerializeField] private Button missionButton;
+    [Tooltip("Shown on the mission button until the practice has been completed.")]
+    [SerializeField] private TMP_Text missionRecommendedLabel;
 
     [Header("Transition")]
     [SerializeField] private ScreenFader fader;
@@ -25,35 +35,19 @@ public class TitleScreenManager : MonoBehaviour
     private bool isLoading;
     private float startTime;
 
+    private void Awake()
+    {
+        if (onlineButton != null) onlineButton.onClick.AddListener(PlayOnline);
+        if (missionButton != null) missionButton.onClick.AddListener(StartMission);
+        if (missionRecommendedLabel != null)
+        {
+            missionRecommendedLabel.gameObject.SetActive(PlayerPrefs.GetInt(MissionCompletedKey, 0) == 0);
+        }
+    }
+
     private void OnEnable()
     {
         startTime = Time.unscaledTime;
-        Subscribe(leftTriggerAction);
-        Subscribe(rightTriggerAction);
-    }
-
-    private void OnDisable()
-    {
-        Unsubscribe(leftTriggerAction);
-        Unsubscribe(rightTriggerAction);
-    }
-
-    private void Subscribe(InputActionReference reference)
-    {
-        if (reference == null || reference.action == null) return;
-        reference.action.performed += OnTriggerPerformed;
-        reference.action.Enable();
-    }
-
-    private void Unsubscribe(InputActionReference reference)
-    {
-        if (reference == null || reference.action == null) return;
-        reference.action.performed -= OnTriggerPerformed;
-    }
-
-    private void OnTriggerPerformed(InputAction.CallbackContext context)
-    {
-        BeginGame();
     }
 
     private void Update()
@@ -64,15 +58,28 @@ public class TitleScreenManager : MonoBehaviour
              keyboard.enterKey.wasPressedThisFrame ||
              keyboard.numpadEnterKey.wasPressedThisFrame))
         {
-            BeginGame();
+            PlayOnline();
         }
     }
 
-    /// <summary>Starts the fade + scene load. Safe to call multiple times.</summary>
-    public void BeginGame()
+    /// <summary>"Partida online": straight to hero select (and later the room).</summary>
+    public void PlayOnline()
+    {
+        Begin(false);
+    }
+
+    /// <summary>"Mi misión": guided practice (not built yet, so it goes to hero select and is flagged).</summary>
+    public void StartMission()
+    {
+        Begin(true);
+    }
+
+    private void Begin(bool mission)
     {
         if (isLoading || Time.unscaledTime - startTime < inputDelay) return;
         isLoading = true;
+        PlayerPrefs.SetInt(MissionRequestedKey, mission ? 1 : 0);
+        PlayerPrefs.Save();
         StartCoroutine(FadeAndLoad());
     }
 
