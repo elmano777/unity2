@@ -20,8 +20,5 @@ MonoBehaviour:
   previewModel: {fileID: 6771613616009355866, guid: c15aa594884fbbb4c95c178e394ae71f,
     type: 3}
   introLines:
-  - You were a hunter once.
-  - You stalked the shadows of the old city.
-  - But the Archmother has other plans.
-  - Complete the ritual, Vindicta.
-  - And take your place in the court of The Archmother.
+  - Hathorne's bloodline will pay for his sins.
+  - All you need to do is summon the Archmother.

@@ -39,11 +39,8 @@ public static class DeadlockAddVindicta
         v.previewModel = preview;
         v.introLines = new[]
         {
-            "You were a hunter once.",
-            "You stalked the shadows of the old city.",
-            "But the Archmother has other plans.",
-            "Complete the ritual, Vindicta.",
-            "And take your place in the court of The Archmother."
+            "Hathorne's bloodline will pay for his sins.",
+            "All you need to do is summon the Archmother."
         };
         EditorUtility.SetDirty(v);
         AssetDatabase.SaveAssets();
