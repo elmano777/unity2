@@ -16,7 +16,9 @@ MonoBehaviour:
   portrait: {fileID: 21300000, guid: 96334947242a4624bb9db55a813dd830, type: 3}
   selectClip: {fileID: 8300000, guid: 3f0a97bed76ff99429dc86ae8c986614, type: 3}
   entryClip: {fileID: 8300000, guid: d4175c7060d319e41ac3ae4446e06d37, type: 3}
-  previewModel: {fileID: 251762852382048113, guid: c44755f099eec38418f48448229e2796, type: 3}
+  winClip: {fileID: 8300000, guid: 68fac00648740134b9fb895753aa7c13, type: 3}
+  previewModel: {fileID: 251762852382048113, guid: c44755f099eec38418f48448229e2796,
+    type: 3}
   introLines:
   - You escaped Lost Whisper.
   - You killed your tormentors.

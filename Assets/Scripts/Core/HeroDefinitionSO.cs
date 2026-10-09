@@ -20,6 +20,9 @@ public class HeroDefinitionSO : ScriptableObject
     [Tooltip("Voice line played together with the story intro (or, for heroes without intro lines, when the match starts).")]
     public AudioClip entryClip;
 
+    [Tooltip("Voice line played on the end screen when the player wins the match.")]
+    public AudioClip winClip;
+
     [Tooltip("3D model shown on the hero-select pedestal.")]
     public GameObject previewModel;
 
