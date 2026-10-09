@@ -23,6 +23,9 @@ public class HeroDefinitionSO : ScriptableObject
     [Tooltip("Voice line played on the end screen when the player wins the match.")]
     public AudioClip winClip;
 
+    [Tooltip("Weapon prefab held in the right hand during the match.")]
+    public GameObject weaponPrefab;
+
     [Tooltip("3D model shown on the hero-select pedestal.")]
     public GameObject previewModel;
 

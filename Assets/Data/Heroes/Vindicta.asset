@@ -17,6 +17,8 @@ MonoBehaviour:
   selectClip: {fileID: 8300000, guid: e03b5d57b1138804ca80b0d8495c683d, type: 3}
   entryClip: {fileID: 8300000, guid: 187fd3050b2dd484dae2cebe69b499f3, type: 3}
   winClip: {fileID: 8300000, guid: 74e3ca1b8499a3f4c8aee728f7d5710e, type: 3}
+  weaponPrefab: {fileID: 7925979450581115040, guid: 3bc2128f07634054ead9e1a6154ad4b4,
+    type: 3}
   previewModel: {fileID: 6771613616009355866, guid: c15aa594884fbbb4c95c178e394ae71f,
     type: 3}
   introLines:
