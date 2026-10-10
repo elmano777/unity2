@@ -36,3 +36,11 @@ Assets/StreamingAssets/RuntimeActionBindings.json*
 
 # Report screenshots
 /Capturas/
+
+# Ruido que Unity reescribe solo (ver CLAUDE.md)
+/Assets/Oculus/OculusProjectConfig.asset
+/Assets/Oculus/OculusProjectConfig.asset.meta
+/ProjectSettings/ProjectSettings.asset
+/ProjectSettings/ShaderGraphSettings.asset
+/ProjectSettings/URPProjectSettings.asset
+*.vsconfig
