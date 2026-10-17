@@ -11,7 +11,7 @@ public static class PlayerProgress
     private const string MatchesPlayedKey = "deadlock.matches.played";
     private const string LastHeroKey = "deadlock.hero.last";
     private const string SubtitlesKey = "deadlock.settings.subtitles";
-    private const string VoiceVolumeKey = "deadlock.settings.voiceVolume";
+    private const string VolumeKey = "deadlock.settings.volume";
     private const string PlayerIdKey = "deadlock.player.id";
 
     /// <summary>
@@ -50,7 +50,7 @@ public static class PlayerProgress
         }
     }
 
-    /// <summary>Whether voice lines show subtitles (RNF-06). On by default for accessibility.</summary>
+    /// <summary>Whether voice lines show subtitles (RNF-08). On by default for accessibility.</summary>
     public static bool SubtitlesEnabled
     {
         get => PlayerPrefs.GetInt(SubtitlesKey, 1) == 1;
@@ -61,15 +61,26 @@ public static class PlayerProgress
         }
     }
 
-    /// <summary>Voice line volume, 0..1 (RNF-06).</summary>
-    public static float VoiceVolume
+    /// <summary>
+    /// Overall volume, 0..1 (RNF-08). Applied through <see cref="AudioListener.volume"/> so voices,
+    /// shots and effects all follow it without each AudioSource having to know about the setting.
+    /// </summary>
+    public static float Volume
     {
-        get => Mathf.Clamp01(PlayerPrefs.GetFloat(VoiceVolumeKey, 1f));
+        get => Mathf.Clamp01(PlayerPrefs.GetFloat(VolumeKey, 1f));
         set
         {
-            PlayerPrefs.SetFloat(VoiceVolumeKey, Mathf.Clamp01(value));
+            float v = Mathf.Clamp01(value);
+            PlayerPrefs.SetFloat(VolumeKey, v);
             PlayerPrefs.Save();
+            AudioListener.volume = v;
         }
+    }
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
+    private static void ApplySavedVolume()
+    {
+        AudioListener.volume = Volume;
     }
 
     /// <summary>
@@ -108,7 +119,7 @@ public static class PlayerProgress
         PlayerPrefs.DeleteKey(MatchesPlayedKey);
         PlayerPrefs.DeleteKey(LastHeroKey);
         PlayerPrefs.DeleteKey(SubtitlesKey);
-        PlayerPrefs.DeleteKey(VoiceVolumeKey);
+        PlayerPrefs.DeleteKey(VolumeKey);
         PlayerPrefs.DeleteKey(PlayerIdKey);
         PlayerPrefs.Save();
     }

@@ -17,6 +17,10 @@ public class HeroDefinitionSO : ScriptableObject
     [Tooltip("Voice line played when the player picks this hero on the select screen.")]
     public AudioClip selectClip;
 
+    [Tooltip("Subtitle shown while selectClip plays (RNF-08).")]
+    [TextArea]
+    public string selectLine;
+
     [Tooltip("Voice line played together with the story intro (or, for heroes without intro lines, when the match starts).")]
     public AudioClip entryClip;
 

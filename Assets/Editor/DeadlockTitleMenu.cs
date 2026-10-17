@@ -51,7 +51,7 @@ public static class DeadlockTitleMenu
         Debug.Log("[Deadlock Setup] Title menu buttons added.");
     }
 
-    private static Button MakeButton(Transform parent, string name, string text, Vector2 pos, TMP_Text styleSource)
+    internal static Button MakeButton(Transform parent, string name, string text, Vector2 pos, TMP_Text styleSource)
     {
         var go = new GameObject(name, typeof(RectTransform), typeof(Image), typeof(Button));
         go.transform.SetParent(parent, false);

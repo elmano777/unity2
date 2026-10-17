@@ -27,6 +27,10 @@ public class HeroSelectManager : MonoBehaviour
     [SerializeField] private ScreenFader fader;
     [Tooltip("Shows the hero's intro lines on the black screen after confirming. Optional.")]
     [SerializeField] private IntroSequencePlayer introPlayer;
+    [Tooltip("Subtitle for the select voice line, shown while it plays if subtitles are on (RNF-08). Optional.")]
+    [SerializeField] private TMPro.TMP_Text selectSubtitle;
+    [Tooltip("Background shown and hidden together with the subtitle. Optional; defaults to the text itself.")]
+    [SerializeField] private GameObject selectSubtitlePanel;
     [Tooltip("Seconds to fade the select voice line out right before the scene loads (if still playing).")]
     [SerializeField] private float voiceFadeOutDuration = 0.3f;
 
@@ -75,6 +79,23 @@ public class HeroSelectManager : MonoBehaviour
         {
             pedestalPlaceholder.SetActive(true);
         }
+
+        if (selectSubtitle != null)
+        {
+            SubtitleRoot.SetActive(false);
+        }
+    }
+
+    private GameObject SubtitleRoot => selectSubtitlePanel != null ? selectSubtitlePanel : selectSubtitle.gameObject;
+
+    private void Update()
+    {
+        // The subtitle lasts as long as the line: hide it once the voice stops (finished, cut or faded).
+        if (selectSubtitle != null && SubtitleRoot.activeSelf &&
+            (voiceAudioSource == null || !voiceAudioSource.isPlaying))
+        {
+            SubtitleRoot.SetActive(false);
+        }
     }
 
     /// <summary>
@@ -114,6 +135,13 @@ public class HeroSelectManager : MonoBehaviour
             voiceAudioSource.Stop();
             voiceAudioSource.clip = hero.selectClip;
             if (hero.selectClip != null) voiceAudioSource.Play();
+        }
+
+        if (selectSubtitle != null)
+        {
+            bool show = PlayerProgress.SubtitlesEnabled && hero.selectClip != null && !string.IsNullOrEmpty(hero.selectLine);
+            selectSubtitle.text = show ? hero.selectLine : string.Empty;
+            SubtitleRoot.SetActive(show);
         }
 
         ShowPreview(hero);
