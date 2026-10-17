@@ -8,6 +8,7 @@ Proyecto final UTEC CS2H01 (IHC, 2026-2). Duelo VR 1v1 online ("el ritual") con 
 - `TitleScreen` → botones "PARTIDA ONLINE" / "MI MISIÓN" (PlayerPrefs `MissionRequested`, `MissionCompleted`).
 - `HeroSelect` → Seven y Vindicta (`Assets/Data/Heroes/*.asset`, `HeroDefinitionSO`): línea al elegir, preview 3D, intro con líneas del informe, línea de entrada.
 - `Lane` → coberturas, `LanePath` por waypoints, `WaveSpawner` por bando, torre Guardian, almas, arma por héroe (`HeroWeaponSwapper`).
+- `Lane` vestido como la calle bajo el puente de Deadlock (`Deadlock/Setup/6`): piso de piedra, edificios de arenisca + ladrillo, puente, cielo y niebla. Texturas CC0 de Poly Haven en `Assets/Art/Textures/Lane`. Si se re-corre el paso 2, correr el 6 después.
 - Recorrido completo verificado en Play sin visor (sin errores). **Falta probar con el Quest**: clics con el puntero láser y encuadre de HeroSelect a altura real.
 
 **Pendiente:** la línea de victoria (`winClip`) no se reproduce aún (no hay pantalla final). Próximo: Entregable 2 (sem. 11) — viñeta de confort / locomoción + base online (decidir NGO+Relay vs Photon Fusion; es el mayor riesgo). Luego E3 online completo, disparo, almas, Mi misión; E4 habilidades, tienda, torres en secuencia, patrón; E5 pantalla final + voto + stats en `persistentDataPath`.
