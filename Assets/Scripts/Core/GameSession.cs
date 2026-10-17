@@ -46,5 +46,9 @@ public class GameSession : MonoBehaviour
 
         Instance = this;
         DontDestroyOnLoad(gameObject);
+
+        // Unity freezes Play Mode when the Editor window loses focus, which stalls the
+        // MCP bridge (see CLAUDE.md). Keep the game simulating in the background.
+        Application.runInBackground = true;
     }
 }

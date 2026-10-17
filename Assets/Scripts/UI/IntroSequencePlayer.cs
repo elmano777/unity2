@@ -47,6 +47,9 @@ public class IntroSequencePlayer : MonoBehaviour
     [Tooltip("Phrases highlighted in the accent color wherever they appear (TMP rich text).")]
     [SerializeField] private string[] accentPhrases = { "The Hidden King" };
     [SerializeField] private Color accentColor = new Color(1f, 0.68f, 0.25f, 1f);
+    [Tooltip("Phrases highlighted in the blue accent color wherever they appear (e.g. Vindicta's 'Archmother').")]
+    [SerializeField] private string[] blueAccentPhrases = { "Archmother" };
+    [SerializeField] private Color blueAccentColor = new Color(0.4f, 0.8f, 1f, 1f);
     [Tooltip("While the intro runs, the parent camera only renders these layers (the screen is black anyway). " +
              "Keeps nearby opaque objects such as controller models from cutting into the text.")]
     [SerializeField] private bool isolateCamera = true;
@@ -307,9 +310,16 @@ public class IntroSequencePlayer : MonoBehaviour
 
     private string ApplyAccents(string line)
     {
-        if (accentPhrases == null) return line;
-        string hex = ColorUtility.ToHtmlStringRGB(accentColor);
-        foreach (string phrase in accentPhrases)
+        line = ApplyAccentColor(line, accentPhrases, accentColor);
+        line = ApplyAccentColor(line, blueAccentPhrases, blueAccentColor);
+        return line;
+    }
+
+    private static string ApplyAccentColor(string line, string[] phrases, Color color)
+    {
+        if (phrases == null) return line;
+        string hex = ColorUtility.ToHtmlStringRGB(color);
+        foreach (string phrase in phrases)
         {
             if (string.IsNullOrEmpty(phrase)) continue;
             line = line.Replace(phrase, $"<color=#{hex}>{phrase}</color>");
