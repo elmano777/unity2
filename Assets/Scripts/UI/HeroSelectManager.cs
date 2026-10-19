@@ -24,6 +24,8 @@ public class HeroSelectManager : MonoBehaviour
     [Tooltip("Card for each hero, same order as availableHeroes.")]
     [SerializeField] private HeroCardView[] heroCards;
     [SerializeField] private UnityEngine.UI.Button confirmButton;
+    [Tooltip("3D confirm (spirit-vision selector): hidden until a hero is chosen, like confirmButton. Optional.")]
+    [SerializeField] private GameObject confirmObject;
     [SerializeField] private ScreenFader fader;
     [Tooltip("Shows the hero's intro lines on the black screen after confirming. Optional.")]
     [SerializeField] private IntroSequencePlayer introPlayer;
@@ -73,6 +75,11 @@ public class HeroSelectManager : MonoBehaviour
         {
             confirmButton.onClick.AddListener(ConfirmSelection);
             confirmButton.gameObject.SetActive(false);
+        }
+
+        if (confirmObject != null)
+        {
+            confirmObject.SetActive(false);
         }
 
         if (pedestalPlaceholder != null)
@@ -149,6 +156,11 @@ public class HeroSelectManager : MonoBehaviour
         if (confirmButton != null)
         {
             confirmButton.gameObject.SetActive(true);
+        }
+
+        if (confirmObject != null)
+        {
+            confirmObject.SetActive(true);
         }
     }
 

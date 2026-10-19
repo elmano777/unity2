@@ -37,6 +37,11 @@ public class TitleScreenManager : MonoBehaviour
 
     private void Awake()
     {
+#if UNITY_EDITOR
+        // Like GameSession (which this scene doesn't have): keep Play Mode running while the
+        // Editor is unfocused, or the MCP bridge stalls (see CLAUDE.md).
+        Application.runInBackground = true;
+#endif
         if (onlineButton != null) onlineButton.onClick.AddListener(PlayOnline);
         if (missionButton != null) missionButton.onClick.AddListener(StartMission);
         if (missionRecommendedLabel != null)

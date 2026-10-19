@@ -22,7 +22,7 @@ public static class DeadlockOnlineSetup
     // Same spawn distance as the single-player rig: 3 m in from each end of the lane.
     private const float SpawnZ = 23f;
 
-    [MenuItem("Deadlock/Setup/7 Online And Comfort Movement")]
+    [MenuItem("Deadlock/Setup/8 Online And Comfort Movement")]
     public static void Run()
     {
         GameObject playerPrefab = CreatePlayerPrefab();
@@ -132,7 +132,7 @@ public static class DeadlockOnlineSetup
         return pivot.transform;
     }
 
-    private static Material CreateVignetteMaterial()
+    internal static Material CreateVignetteMaterial()
     {
         Material material = AssetDatabase.LoadAssetAtPath<Material>(VignetteMaterialPath);
 
@@ -173,7 +173,7 @@ public static class DeadlockOnlineSetup
         EditorUtility.SetDirty(manager);
     }
 
-    private static void AddLocomotion(OVRCameraRig rig)
+    internal static void AddLocomotion(OVRCameraRig rig)
     {
         ComfortLocomotion locomotion = rig.GetComponent<ComfortLocomotion>() ?? rig.gameObject.AddComponent<ComfortLocomotion>();
 
@@ -188,7 +188,7 @@ public static class DeadlockOnlineSetup
         so.ApplyModifiedPropertiesWithoutUndo();
     }
 
-    private static void AddVignette(OVRCameraRig rig, Material material)
+    internal static void AddVignette(OVRCameraRig rig, Material material)
     {
         Replace("ComfortVignette");
 
@@ -236,7 +236,7 @@ public static class DeadlockOnlineSetup
         so.ApplyModifiedPropertiesWithoutUndo();
     }
 
-    private static void Replace(string name)
+    internal static void Replace(string name)
     {
         var matches = new System.Collections.Generic.List<GameObject>();
 
