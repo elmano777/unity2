@@ -74,6 +74,13 @@ public class Weapon : MonoBehaviour
     /// <summary>True while the weapon is off cooldown and can fire.</summary>
     public bool CanFire => Time.time >= nextFireTime;
 
+    /// <summary>Side this weapon shoots for. Set at runtime when the online rival plays the Sapphire side.</summary>
+    public Faction Owner
+    {
+        get => owner;
+        set => owner = value;
+    }
+
     private void Awake()
     {
         if (muzzle == null)
