@@ -37,6 +37,12 @@ public static class DeadlockSpiritVision
             return;
         }
 
+        // The rig ships with Eye Level tracking, which puts the head on the floor; same fix as the lobby.
+        if (Object.FindObjectOfType<PlayerSpawnHeight>() == null)
+        {
+            new GameObject("PlayerSpawnHeight").AddComponent<PlayerSpawnHeight>();
+        }
+
         Material glowLine = DeadlockSceneKit.Glow("Glow_VisionLine", new Color(0.3f, 1f, 0.6f, 0.7f), 0f, 0.8f);
         Material glowPool = DeadlockSceneKit.Glow("Glow_VisionPool", new Color(0.1f, 0.65f, 0.4f, 0.35f), 1f);
         Material glowDisc = DeadlockSceneKit.Glow("Glow_HeroDisc", new Color(0.25f, 1f, 0.6f, 0.6f), 1f);
