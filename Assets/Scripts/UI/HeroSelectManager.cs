@@ -288,8 +288,8 @@ public class HeroSelectManager : MonoBehaviour
         Renderer[] renderers = model.GetComponentsInChildren<Renderer>();
         if (renderers.Length > 0)
         {
-            Bounds b = renderers[0].bounds;
-            for (int i = 1; i < renderers.Length; i++) b.Encapsulate(renderers[i].bounds);
+            Bounds b = RestBounds(renderers[0]);
+            for (int i = 1; i < renderers.Length; i++) b.Encapsulate(RestBounds(renderers[i]));
 
             float top = b.max.y;
             if (top > 0.0001f)
@@ -300,6 +300,30 @@ public class HeroSelectManager : MonoBehaviour
 
         mt.SetParent(container.transform, false);
         return container;
+    }
+
+    /// <summary>
+    /// World bounds of <paramref name="renderer"/> in its rest pose. Skinned meshes (the rigged Seven.glb)
+    /// report padded bounds, so those are measured from their mesh, which is stored in the rest pose.
+    /// </summary>
+    public static Bounds RestBounds(Renderer renderer)
+    {
+        if (!(renderer is SkinnedMeshRenderer skinned) || skinned.sharedMesh == null)
+        {
+            return renderer.bounds;
+        }
+
+        Bounds local = skinned.sharedMesh.bounds;
+        Transform t = skinned.transform;
+        var b = new Bounds(t.TransformPoint(local.min), Vector3.zero);
+        for (int i = 1; i < 8; i++)
+        {
+            b.Encapsulate(t.TransformPoint(new Vector3(
+                (i & 1) == 0 ? local.min.x : local.max.x,
+                (i & 2) == 0 ? local.min.y : local.max.y,
+                (i & 4) == 0 ? local.min.z : local.max.z)));
+        }
+        return b;
     }
 
     private IEnumerator PopIn(Transform target)

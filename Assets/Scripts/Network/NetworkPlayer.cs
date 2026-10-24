@@ -329,12 +329,12 @@ public class NetworkPlayer : NetworkBehaviour
 
             if (first)
             {
-                bounds = renderer.bounds;
+                bounds = HeroSelectManager.RestBounds(renderer);
                 first = false;
             }
             else
             {
-                bounds.Encapsulate(renderer.bounds);
+                bounds.Encapsulate(HeroSelectManager.RestBounds(renderer));
             }
         }
 
