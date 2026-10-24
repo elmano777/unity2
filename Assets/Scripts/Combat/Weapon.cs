@@ -64,6 +64,13 @@ public class Weapon : MonoBehaviour
 
     [SerializeField] private float tracerDuration = 0.04f;
 
+    [Tooltip("World-space particle system with a stretched renderer. One particle per shot flies from " +
+             "the muzzle to the impact point, so the bullet reads as travelling. Optional.")]
+    [SerializeField] private ParticleSystem bulletStreak;
+
+    [Tooltip("How fast the visible bullet travels, in metres per second. Damage stays instant.")]
+    [SerializeField] private float bulletSpeed = 140f;
+
     private float nextFireTime;
     private float tracerHideTime;
 
@@ -225,6 +232,21 @@ public class Weapon : MonoBehaviour
             tracer.SetPosition(1, endPoint);
             tracer.enabled = true;
             tracerHideTime = Time.time + tracerDuration;
+        }
+
+        if (bulletStreak != null && bulletSpeed > 0f)
+        {
+            // Emit rather than Play: every shot gets its own particle, so rapid fire shows several
+            // bullets in the air at once, each dying exactly where its ray hit.
+            Vector3 travel = endPoint - origin;
+            var emit = new ParticleSystem.EmitParams
+            {
+                position = origin,
+                velocity = travel.normalized * bulletSpeed,
+                startLifetime = Mathf.Max(0.01f, travel.magnitude / bulletSpeed),
+                applyShapeToPosition = false,
+            };
+            bulletStreak.Emit(emit, 1);
         }
 
         HapticFeedback.Pulse(hapticHand, hapticAmplitude, hapticDuration);
