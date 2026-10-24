@@ -20,7 +20,7 @@ public static class DeadlockMinionDeathFade
         "Assets/Prefabs/Minions/Sapphire_Medic.prefab",
     };
 
-    [MenuItem("Deadlock/Setup/12 Minion Death Fade")]
+    [MenuItem("Deadlock/Setup/15 Minion Death Fade")]
     public static void Run()
     {
         DeadlockSceneKit.EnsureFolder("Assets/Art/Materials/Combat");

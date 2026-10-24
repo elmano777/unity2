@@ -33,7 +33,7 @@ public static class DeadlockWeaponFeedback
         "Assets/Prefabs/Minions/Sapphire_Medic.prefab",
     };
 
-    [MenuItem("Deadlock/Setup/11 Weapon Feedback And Health Bars")]
+    [MenuItem("Deadlock/Setup/14 Weapon Feedback And Health Bars")]
     public static void Run()
     {
         DeadlockSceneKit.EnsureFolder(MaterialDir);

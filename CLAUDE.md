@@ -24,6 +24,10 @@ Proyecto final UTEC CS2H01 (IHC, 2026-2). Duelo VR 1v1 online ("el ritual") con 
 
 **Atrás** (paso 13, `BackToGarage`): en HeroSelect runa ATRÁS (láser) o B/Y; en el Lane mantener B/Y 1,2 s (online o Mi misión) vuelve al garage, cierra la sala y destruye el NetworkManager. Va en su propia raíz: re-correr 13 después de 8 o 10 no hace falta, pero sí si se reconstruye el Lane (paso 2).
 
+**Feedback del arma y barras** (paso 14, 2026-10-24): sin assets externos (el "Bullet FX Pack" es solo Built-in). `Shot.wav`/`Hit.wav` sintetizados en `Assets/Audio/Combat`; bajo `Muzzle` de Seven_Weapon y Vindicta_Weapon: fogonazo, `BulletStreak` (una partícula por disparo a `bulletSpeed`, solo visual: el daño sigue instantáneo) y trazador; `BulletImpact.prefab` con chispas y sonido; shader `Deadlock/GlowParticle`. Cada minion tiene `HealthBar` (2 quads, oculta con vida llena, mira a la cámara). El arma dispara como `Faction.Player` (= Amber): solo los minions Sapphire pierden vida, y los Amber de delante bloquean el tiro.
+
+**Minions** (paso 15, 2026-10-24): `MinionAgent.KeepSpacing` los separa (75 % del radio de su cápsula, aliados y enemigos) para que una oleada no se vea como un solo minion. Al morir se desvanecen en 0,5 s con `Minion_DeathFade` (shader `Deadlock/MinionFade`; los materiales glTF son opacos) y se les apaga el collider; las almas no cambian. Los pasos 14 y 15 escriben en los prefabs de minion: re-correrlos si se re-corre el paso 1.
+
 **Pendiente:** la línea de victoria (`winClip`) no se reproduce aún (no hay pantalla final). Próximo: E3 online completo, disparo, almas, Mi misión; E4 habilidades, tienda, torres en secuencia, patrón; E5 pantalla final + voto + stats en `persistentDataPath`.
 
 ## Reglas del proyecto
