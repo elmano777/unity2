@@ -1,3 +1,5 @@
+using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
@@ -84,7 +86,34 @@ public class MinionAgent : MonoBehaviour
 
     [SerializeField] private float healBeamDuration = 0.4f;
 
+    [Header("Spacing")]
+    [Tooltip("Personal space as a fraction of the capsule radius. Minions closer than the sum of " +
+             "both radii push each other apart, so a wave reads as a crowd and not as one model.")]
+    [SerializeField] private float spacingRadiusScale = 0.75f;
+
+    [Tooltip("Fastest a minion slides sideways to make room, in metres per second.")]
+    [SerializeField] private float separationSpeed = 3f;
+
+    [Header("Death")]
+    [Tooltip("Transparent material (Deadlock/MinionFade) swapped onto the body when it dies.")]
+    [SerializeField] private Material deathFadeMaterial;
+
+    [Tooltip("Seconds from the killing blow until the body has fully faded and is removed.")]
+    [SerializeField] private float deathFadeDuration = 0.5f;
+
+    /// <summary>Every live minion, for the spacing check. A plain list beats a physics query at wave sizes.</summary>
+    private static readonly List<MinionAgent> Active = new List<MinionAgent>();
+
+    private static readonly int BaseMapId = Shader.PropertyToID("_BaseMap");
+    private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
+    private static readonly int AlphaId = Shader.PropertyToID("_Alpha");
+
+    // glTFast names first: that is what the minion models are imported with.
+    private static readonly string[] TextureProperties = { "baseColorTexture", "_BaseMap", "_MainTex" };
+    private static readonly string[] ColorProperties = { "baseColorFactor", "_BaseColor", "_Color" };
+
     private readonly Collider[] overlapBuffer = new Collider[24];
+    private float spacingRadius = 0.5f;
     private Health health;
     private LanePath lane;
     private Faction faction;
@@ -128,6 +157,11 @@ public class MinionAgent : MonoBehaviour
         {
             visualBasePosition = visualRoot.localPosition;
             visualBaseRotation = visualRoot.localRotation;
+        }
+
+        if (TryGetComponent(out CapsuleCollider capsule))
+        {
+            spacingRadius = capsule.radius * spacingRadiusScale;
         }
     }
 
@@ -179,11 +213,13 @@ public class MinionAgent : MonoBehaviour
     private void OnEnable()
     {
         health.Killed += OnKilled;
+        Active.Add(this);
     }
 
     private void OnDisable()
     {
         health.Killed -= OnKilled;
+        Active.Remove(this);
     }
 
     /// <summary>
@@ -220,9 +256,17 @@ public class MinionAgent : MonoBehaviour
         if (definition.role == MinionRole.Medic)
         {
             UpdateMedic();
-            return;
+        }
+        else
+        {
+            UpdateFighter();
         }
 
+        KeepSpacing();
+    }
+
+    private void UpdateFighter()
+    {
         if (Time.time >= nextScanTime)
         {
             nextScanTime = Time.time + scanInterval;
@@ -540,14 +584,166 @@ public class MinionAgent : MonoBehaviour
         transform.rotation = Quaternion.RotateTowards(transform.rotation, desired, turnSpeed * Time.deltaTime);
     }
 
+    /// <summary>
+    /// Pushes this minion out of any other minion's personal space, allies and enemies alike. Each
+    /// of the pair moves half the overlap, capped by <see cref="separationSpeed"/>, so a bunched-up
+    /// wave spreads out smoothly instead of popping apart.
+    /// </summary>
+    private void KeepSpacing()
+    {
+        Vector3 position = transform.position;
+        Vector3 push = Vector3.zero;
+
+        for (int i = 0; i < Active.Count; i++)
+        {
+            MinionAgent other = Active[i];
+
+            if (other == this || other.CurrentState == State.Dead)
+            {
+                continue;
+            }
+
+            Vector3 offset = position - other.transform.position;
+            offset.y = 0f;
+
+            float minDistance = spacingRadius + other.spacingRadius;
+            float sqrDistance = offset.sqrMagnitude;
+
+            if (sqrDistance >= minDistance * minDistance)
+            {
+                continue;
+            }
+
+            float distance = Mathf.Sqrt(sqrDistance);
+
+            // Two minions on the exact same spot have no direction to split along: send them
+            // opposite ways sideways, decided by instance id so the pair agrees.
+            Vector3 away = distance > 0.001f
+                ? offset / distance
+                : (GetInstanceID() < other.GetInstanceID() ? transform.right : -transform.right);
+
+            push += away * ((minDistance - distance) * 0.5f);
+        }
+
+        if (push.sqrMagnitude < 0.000001f)
+        {
+            return;
+        }
+
+        transform.position = position + Vector3.ClampMagnitude(push, separationSpeed * Time.deltaTime);
+    }
+
     private void OnKilled(DamageInfo info)
     {
         CurrentState = State.Dead;
         currentTarget = null;
         currentTargetTransform = null;
+        Active.Remove(this);
+
+        if (healBeam != null)
+        {
+            healBeam.enabled = false;
+        }
+
+        // Shots pass through the fading body instead of sparking on something already gone.
+        if (TryGetComponent(out Collider body))
+        {
+            body.enabled = false;
+        }
 
         GameEvents.RaiseMinionKilled(faction);
         DropSouls();
+        StartCoroutine(FadeOut());
+    }
+
+    /// <summary>
+    /// Swaps the body onto <see cref="deathFadeMaterial"/>, keeping each part's texture and colour,
+    /// and takes it from opaque to invisible over <see cref="deathFadeDuration"/>, then removes the
+    /// minion. Without a fade material the body just stays until Health's destroy delay runs out.
+    /// </summary>
+    private IEnumerator FadeOut()
+    {
+        if (deathFadeMaterial == null)
+        {
+            yield break;
+        }
+
+        Transform body = visualRoot != null ? visualRoot : transform;
+        var parts = new List<(Renderer renderer, int index, MaterialPropertyBlock block)>();
+
+        foreach (MeshRenderer renderer in body.GetComponentsInChildren<MeshRenderer>())
+        {
+            Material[] originals = renderer.sharedMaterials;
+            var faded = new Material[originals.Length];
+
+            for (int i = 0; i < originals.Length; i++)
+            {
+                faded[i] = deathFadeMaterial;
+                var block = new MaterialPropertyBlock();
+
+                if (originals[i] != null)
+                {
+                    Texture texture = FindTexture(originals[i]);
+
+                    if (texture != null)
+                    {
+                        block.SetTexture(BaseMapId, texture);
+                    }
+
+                    block.SetColor(BaseColorId, FindColor(originals[i]));
+                }
+
+                parts.Add((renderer, i, block));
+            }
+
+            renderer.sharedMaterials = faded;
+            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        }
+
+        float elapsed = 0f;
+
+        while (elapsed < deathFadeDuration)
+        {
+            elapsed += Time.deltaTime;
+            float alpha = 1f - Mathf.Clamp01(elapsed / deathFadeDuration);
+
+            foreach (var part in parts)
+            {
+                part.block.SetFloat(AlphaId, alpha);
+                part.renderer.SetPropertyBlock(part.block, part.index);
+            }
+
+            yield return null;
+        }
+
+        Destroy(gameObject);
+    }
+
+    /// <summary>Base colour texture of a glTF, URP or built-in material, whichever it has.</summary>
+    private static Texture FindTexture(Material material)
+    {
+        foreach (string name in TextureProperties)
+        {
+            if (material.HasProperty(name) && material.GetTexture(name) != null)
+            {
+                return material.GetTexture(name);
+            }
+        }
+
+        return null;
+    }
+
+    private static Color FindColor(Material material)
+    {
+        foreach (string name in ColorProperties)
+        {
+            if (material.HasProperty(name))
+            {
+                return material.GetColor(name);
+            }
+        }
+
+        return Color.white;
     }
 
     private void DropSouls()
