@@ -28,6 +28,16 @@ public class NetworkPlayer : NetworkBehaviour
     [Tooltip("How fast the rival's visuals catch up with the received pose. Higher = snappier.")]
     [SerializeField] private float smoothing = 18f;
 
+    [Header("Hero body")]
+    [Tooltip("Primitive head and body, hidden once the hero's model stands in for them.")]
+    [SerializeField] private Renderer[] placeholders;
+
+    [Tooltip("Height the hero's model is scaled to, feet to the top of the head, in metres.")]
+    [SerializeField] private float heroHeight = 1.85f;
+
+    [Tooltip("Layers the hero's feet are put down on, straight below the rival's head.")]
+    [SerializeField] private LayerMask groundMask = ~0;
+
     private readonly NetworkVariable<Vector3> headPosition = Owned(Vector3.zero);
     private readonly NetworkVariable<Quaternion> headRotation = Owned(Quaternion.identity);
     private readonly NetworkVariable<Vector3> leftPosition = Owned(Vector3.zero);
@@ -38,6 +48,7 @@ public class NetworkPlayer : NetworkBehaviour
 
     private OVRCameraRig rig;
     private GameObject weaponVisual;
+    private Transform heroBody;
 
     private static NetworkVariable<T> Owned<T>(T value) =>
         new NetworkVariable<T>(value, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
@@ -112,11 +123,20 @@ public class NetworkPlayer : NetworkBehaviour
         Follow(rightHand, rightPosition.Value, rightRotation.Value, t);
 
         // The body hangs under the head and only turns with it around Y, like a torso would.
+        Vector3 forward = Vector3.ProjectOnPlane(head.forward, Vector3.up);
+
         if (body != null)
         {
-            Vector3 forward = Vector3.ProjectOnPlane(head.forward, Vector3.up);
             Quaternion yaw = forward.sqrMagnitude > 0.001f ? Quaternion.LookRotation(forward) : body.rotation;
             body.SetPositionAndRotation(head.position + Vector3.down * 0.75f, yaw);
+        }
+
+        // The hero stands on the floor under the head rather than hanging from it, so it stays
+        // upright and full height while the player leans or crouches.
+        if (heroBody != null)
+        {
+            Quaternion yaw = forward.sqrMagnitude > 0.001f ? Quaternion.LookRotation(forward) : heroBody.rotation;
+            heroBody.SetPositionAndRotation(FloorUnder(head.position), yaw);
         }
 
         // Hero name floats over the rival's head and always faces this player.
@@ -129,6 +149,17 @@ public class NetworkPlayer : NetworkBehaviour
             nameLabel.transform.SetPositionAndRotation(labelPosition,
                 away.sqrMagnitude > 0.001f ? Quaternion.LookRotation(away) : nameLabel.transform.rotation);
         }
+    }
+
+    private Vector3 FloorUnder(Vector3 headPosition)
+    {
+        if (Physics.Raycast(headPosition, Vector3.down, out RaycastHit hit, 3f, groundMask, QueryTriggerInteraction.Ignore))
+        {
+            return hit.point;
+        }
+
+        // No floor found: assume someone of the hero's height standing up.
+        return headPosition + Vector3.down * (heroHeight - 0.15f);
     }
 
     private static void Follow(Transform target, Vector3 position, Quaternion rotation, float t)
@@ -215,6 +246,8 @@ public class NetworkPlayer : NetworkBehaviour
             nameLabel.text = hero.heroName;
         }
 
+        ShowHeroBody(hero);
+
         if (weaponVisual != null)
         {
             Destroy(weaponVisual);
@@ -232,7 +265,93 @@ public class NetworkPlayer : NetworkBehaviour
         holder.transform.SetParent(rightHand, false);
 
         GameObject copy = Instantiate(hero.weaponPrefab, holder.transform);
+        MakeVisualOnly(copy);
 
+        holder.SetActive(true);
+        weaponVisual = holder;
+    }
+
+    /// <summary>
+    /// Stands the hero's model in for the primitive head and body. The models are static (no
+    /// skeleton), so the body only turns with the head while the synced hands and gun move on
+    /// their own. The model's own gun is hidden so the rival doesn't carry two.
+    /// </summary>
+    private void ShowHeroBody(HeroDefinitionSO hero)
+    {
+        if (heroBody != null)
+        {
+            Destroy(heroBody.gameObject);
+            heroBody = null;
+        }
+
+        bool hasModel = hero.previewModel != null;
+
+        foreach (Renderer placeholder in placeholders)
+        {
+            if (placeholder != null)
+            {
+                placeholder.enabled = !hasModel;
+            }
+        }
+
+        if (!hasModel)
+        {
+            return;
+        }
+
+        var holder = new GameObject("RivalHero");
+        holder.SetActive(false);
+        holder.transform.SetParent(visualRoot.transform, false);
+
+        GameObject copy = Instantiate(hero.previewModel, holder.transform);
+        MakeVisualOnly(copy);
+
+        foreach (Renderer renderer in copy.GetComponentsInChildren<Renderer>(true))
+        {
+            if (renderer.name.EndsWith(".gun"))
+            {
+                renderer.enabled = false;
+            }
+        }
+
+        holder.SetActive(true);
+
+        // Scale to heroHeight and move the model so its feet are centred on the holder.
+        Bounds bounds = new Bounds();
+        bool first = true;
+
+        foreach (Renderer renderer in copy.GetComponentsInChildren<Renderer>())
+        {
+            if (!renderer.enabled)
+            {
+                continue;
+            }
+
+            if (first)
+            {
+                bounds = renderer.bounds;
+                first = false;
+            }
+            else
+            {
+                bounds.Encapsulate(renderer.bounds);
+            }
+        }
+
+        if (!first && bounds.size.y > 0.01f)
+        {
+            float scale = heroHeight / bounds.size.y;
+            Vector3 feet = holder.transform.InverseTransformPoint(new Vector3(bounds.center.x, bounds.min.y, bounds.center.z));
+            copy.transform.localScale *= scale;
+            copy.transform.localPosition = (copy.transform.localPosition - feet) * scale;
+        }
+
+        heroBody = holder.transform;
+    }
+
+    /// <summary>Strips a copied prefab down to what it looks like: no scripts, nothing to hit.</summary>
+    private static void MakeVisualOnly(GameObject copy)
+    {
         foreach (MonoBehaviour behaviour in copy.GetComponentsInChildren<MonoBehaviour>(true))
         {
             DestroyImmediate(behaviour);
@@ -242,8 +361,5 @@ public class NetworkPlayer : NetworkBehaviour
         {
             DestroyImmediate(collider);
         }
-
-        holder.SetActive(true);
-        weaponVisual = holder;
     }
 }
