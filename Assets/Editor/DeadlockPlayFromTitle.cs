@@ -2,13 +2,14 @@ using UnityEditor;
 using UnityEditor.SceneManagement;
 
 /// <summary>
-/// Makes Play in the editor always start at the title screen, whatever scene is open, so testing
-/// runs the real flow: title → hero select → lane. Toggle it off from the Deadlock menu to play the
+/// Makes Play in the editor always start at the beginning of the game, whatever scene is open, so
+/// testing runs the real flow: intro → title → hero select → lane (title if the intro isn't built). Toggle it off from the Deadlock menu to play the
 /// open scene directly.
 /// </summary>
 [InitializeOnLoad]
 public static class DeadlockPlayFromTitle
 {
+    private const string IntroScenePath = "Assets/Scenes/Intro.unity";
     private const string TitleScenePath = "Assets/Scenes/TitleScreen.unity";
     private const string MenuPath = "Deadlock/Play From Title Screen";
     private const string PrefKey = "Deadlock.PlayFromTitle";
@@ -38,10 +39,10 @@ public static class DeadlockPlayFromTitle
         return true;
     }
 
-    private static void Apply()
+    internal static void Apply()
     {
         EditorSceneManager.playModeStartScene = Enabled
-            ? AssetDatabase.LoadAssetAtPath<SceneAsset>(TitleScenePath)
+            ? AssetDatabase.LoadAssetAtPath<SceneAsset>(IntroScenePath) ?? AssetDatabase.LoadAssetAtPath<SceneAsset>(TitleScenePath)
             : null;
     }
 }

@@ -49,6 +49,9 @@ public class HeroSelectManager : MonoBehaviour
     private GameObject currentPreview;
     private bool isLoading;
 
+    /// <summary>True once the hero is confirmed and the intro / match is loading.</summary>
+    public bool IsLoading => isLoading;
+
     public HeroDefinitionSO SelectedHero =>
         selectedIndex >= 0 && availableHeroes != null && selectedIndex < availableHeroes.Length
             ? availableHeroes[selectedIndex]

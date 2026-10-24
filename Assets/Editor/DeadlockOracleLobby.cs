@@ -9,7 +9,8 @@ using UnityEngine.Events;
 /// Turns the flat title screen into the seer's hall (Deadlock's lobby): a dark mansion room with
 /// tall arched windows over the night city, a glowing ritual circle, and the hooded seer behind her
 /// crystal ball. The player walks up (stick, with the comfort vignette) and strikes the orb; the
-/// menu runes "Partida online" and "Mi misión" rise out of it and are chosen with the laser.
+/// menu runes "Partida online" and "Mi misión" rise out of it and are chosen with the laser, with the
+/// volume and subtitle settings under them. We call this room the garage.
 /// </summary>
 /// <remarks>
 /// Rebuilds only the "OracleLobby" root and re-wires the existing TitleScreenManager, fader and
@@ -40,6 +41,10 @@ public static class DeadlockOracleLobby
         var scene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
         CreateMaterials();
 
+        // The settings canvas lives under the runes; take it out before the lobby is rebuilt.
+        GameObject titleCanvas = FindTitleCanvas();
+        if (titleCanvas != null) titleCanvas.transform.SetParent(null, true);
+
         DeadlockOnlineSetup.Replace("OracleLobby");
         Transform root = new GameObject("OracleLobby").transform;
 
@@ -51,6 +56,7 @@ public static class DeadlockOracleLobby
         BuildSeer(root);
         BuildTitle(root);
         SetupLighting(root);
+        BuildAmbience(root);
 
         foreach (Transform t in root.GetComponentsInChildren<Transform>(true))
         {
@@ -61,7 +67,8 @@ public static class DeadlockOracleLobby
         }
 
         SetupPlayer();
-        HideFlatTitle();
+        HideFlatTitle(orb);
+        DeadlockMenuPolish.ApplyToOpenScene();
 
         EditorSceneManager.MarkSceneDirty(scene);
         EditorSceneManager.SaveScene(scene);
@@ -496,6 +503,30 @@ public static class DeadlockOracleLobby
         light.color = new Color(0.5f, 0.66f, 0.78f);
         light.intensity = 0.45f;
         light.shadows = LightShadows.None;
+
+        // A soft green wash in the tone of the orb and the crystals: over the circle, by each
+        // candelabra and in the corners, low enough that the candles stay the warm accent.
+        Color green = new Color(0.3f, 1f, 0.55f);
+        DeadlockSceneKit.PointLight("GreenWash_Circle", root, new Vector3(0f, 3.2f, -1.2f), green, 0.6f, 7f);
+        foreach (int side in new[] { -1, 1 })
+        {
+            DeadlockSceneKit.PointLight($"GreenWash_Candle{side}", root, new Vector3(side * 3.4f, 0.6f, 1.2f), green, 0.5f, 4f);
+            DeadlockSceneKit.PointLight($"GreenWash_Back{side}", root, new Vector3(side * 5.2f, 2.5f, 4.5f), green, 0.45f, 6f);
+            DeadlockSceneKit.PointLight($"GreenWash_Front{side}", root, new Vector3(side * 5.2f, 2.5f, -5.5f), green, 0.4f, 6f);
+        }
+    }
+
+    private static void BuildAmbience(Transform root)
+    {
+        // Looping room tone of the garage, everywhere in the room (2D).
+        var go = new GameObject("GarageAmbience");
+        go.transform.SetParent(root, false);
+        AudioSource source = go.AddComponent<AudioSource>();
+        source.clip = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/Ambience/amb_garage_lp_l.mp3");
+        source.loop = true;
+        source.playOnAwake = true;
+        source.spatialBlend = 0f;
+        source.volume = 0.6f;
     }
 
     private static void SetupPlayer()
@@ -534,12 +565,13 @@ public static class DeadlockOracleLobby
     }
 
     /// <summary>
-    /// The old flat title stays for its fader and audio settings: the title, subtitle and buttons are
-    /// hidden, and the canvas is moved to the right of the spawn as a floating settings plaque.
+    /// The old flat title stays for its audio settings: the title, subtitle and buttons are hidden,
+    /// and the canvas goes under the menu runes, so volume and subtitles appear below the orb when it
+    /// is struck, tilted up towards the player.
     /// </summary>
-    private static void HideFlatTitle()
+    private static void HideFlatTitle(OracleOrb orb)
     {
-        GameObject canvas = GameObject.Find("TitleCanvas");
+        GameObject canvas = FindTitleCanvas();
         if (canvas == null) return;
 
         foreach (Transform child in canvas.transform)
@@ -547,16 +579,46 @@ public static class DeadlockOracleLobby
             child.gameObject.SetActive(child.name == "AudioSettings");
         }
 
-        Vector3 plaque = new Vector3(3.3f, 1.45f, -2.4f);
-        Vector3 away = plaque - (SpawnPosition + Vector3.up * 1.6f);
-        away.y = 0f;
-        canvas.transform.SetPositionAndRotation(plaque, Quaternion.LookRotation(away));
+        Transform runes = orb != null ? DeadlockSceneKit.FindDeep(orb.transform.parent, "MenuRunes") : null;
+        if (runes != null) canvas.transform.SetParent(runes, false);
+
+        // Row of buttons 1.3 m wide, in front of the pedestal under the runes, facing the player.
+        canvas.transform.localScale = Vector3.one * (1.3f / 2640f);
+
+        // Restyle the flat orange buttons as dark green glass with glowing mint labels, like the runes.
+        foreach (UnityEngine.UI.Button button in canvas.GetComponentsInChildren<UnityEngine.UI.Button>(true))
+        {
+            if (button.targetGraphic != null) button.targetGraphic.color = Color.white;
+            UnityEngine.UI.ColorBlock colors = button.colors;
+            colors.normalColor = new Color(0.04f, 0.22f, 0.13f, 0.8f);
+            colors.highlightedColor = new Color(0.12f, 0.55f, 0.32f, 0.9f);
+            colors.pressedColor = new Color(0.3f, 0.9f, 0.55f, 1f);
+            colors.selectedColor = colors.normalColor;
+            button.colors = colors;
+            foreach (TMP_Text label in button.GetComponentsInChildren<TMP_Text>(true)) label.color = new Color(0.8f, 1f, 0.88f);
+        }
+        foreach (TMP_Text label in canvas.GetComponentsInChildren<TMP_Text>(true))
+        {
+            if (label.name == "VolumeLabel") label.color = new Color(0.8f, 1f, 0.88f);
+        }
+        canvas.transform.SetPositionAndRotation(OrbPosition + new Vector3(0f, -0.42f, -0.62f), Quaternion.Euler(35f, 0f, 0f));
 
         Transform settings = canvas.transform.Find("AudioSettings");
         if (settings is RectTransform rect)
         {
+            // The buttons sit at y = -1000 and span x -1380..1260 inside it: centre them on the canvas.
             rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 0.5f);
-            rect.anchoredPosition = Vector2.zero;
+            rect.anchoredPosition = new Vector2(60f, 1000f);
         }
+    }
+
+    private static GameObject FindTitleCanvas()
+    {
+        foreach (Canvas c in Object.FindObjectsOfType<Canvas>(true))
+        {
+            if (c.name == "TitleCanvas") return c.gameObject;
+        }
+
+        return null;
     }
 }

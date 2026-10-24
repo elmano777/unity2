@@ -125,6 +125,7 @@ public static class DeadlockSpiritVision
         SetupAtmosphere(rig);
         DeadlockSceneKit.EnsurePhysicsRaycaster(rig);
 
+        DeadlockMenuPolish.ApplyToOpenScene();
         EditorSceneManager.MarkSceneDirty(scene);
         EditorSceneManager.SaveScene(scene);
         Debug.Log("[Deadlock Vision] Spirit vision built in HeroSelect.");
