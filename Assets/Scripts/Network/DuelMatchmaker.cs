@@ -21,7 +21,8 @@ using UnityEngine;
 /// network setup so only matching builds meet (Netcode silently refuses a different build), and a
 /// waiting host keeps looking: if two players searched at the same moment and each made a room,
 /// the newer room's host closes it and joins the older one. The room code is shown while waiting
-/// so both players can check they are in the same room.
+/// so both players can check they are in the same room. A room whose host never answers (it quit
+/// without closing it) is given up after <see cref="joinTimeout"/> and skipped from then on.
 /// </remarks>
 /// <remarks>
 /// Same flow as Meta's Auto Matchmaking building block from the course lab (Lobby + Relay + NGO),
@@ -57,6 +58,10 @@ public class DuelMatchmaker : MonoBehaviour
     private NetworkManager network;
     private string buildTag;
     private bool merging;
+    private readonly HashSet<string> deadRooms = new HashSet<string>();
+
+    [Tooltip("Seconds to wait for a room's host to answer before treating the room as abandoned.")]
+    [SerializeField] private float joinTimeout = 12f;
 
     public Status Current { get; private set; } = Status.Idle;
 
@@ -132,17 +137,15 @@ public class DuelMatchmaker : MonoBehaviour
     {
         try
         {
-            return await Retry(Join);
+            Lobby joined = await Retry(Join);
+            if (joined != null) return joined;
         }
         catch (Exception e)
         {
-            if (e is LobbyServiceException lobbyError && lobbyError.Reason != LobbyExceptionReason.NoOpenLobbies)
-            {
-                Debug.LogWarning($"[DuelMatchmaker] Could not join a lobby: {lobbyError.Reason}");
-            }
-
-            return await Retry(Create);
+            Debug.LogWarning($"[DuelMatchmaker] Could not join a lobby: {e.Message}");
         }
+
+        return await Retry(Create);
     }
 
     private async Task<Lobby> Retry(Func<Task<Lobby>> attempt)
@@ -172,13 +175,34 @@ public class DuelMatchmaker : MonoBehaviour
         throw last ?? new Exception("Matchmaking failed");
     }
 
+    /// <summary>Joins the newest open room of this build that hasn't failed us; null when there is none.</summary>
     private async Task<Lobby> Join()
     {
-        Lobby found = await LobbyService.Instance.QuickJoinLobbyAsync(new QuickJoinLobbyOptions
+        Lobby target = null;
+        foreach (Lobby open in await OpenRooms(false))
         {
-            Filter = new List<QueryFilter> { new QueryFilter(QueryFilter.FieldOptions.S1, buildTag, QueryFilter.OpOptions.EQ) }
+            if (!deadRooms.Contains(open.Id)) { target = open; break; }
+        }
+
+        if (target == null) return null;
+
+        Lobby joined = await LobbyService.Instance.JoinLobbyByIdAsync(target.Id);
+        return await ConnectAsClient(joined);
+    }
+
+    private async Task<List<Lobby>> OpenRooms(bool oldestFirst)
+    {
+        QueryResponse open = await LobbyService.Instance.QueryLobbiesAsync(new QueryLobbiesOptions
+        {
+            Count = 10,
+            Filters = new List<QueryFilter>
+            {
+                new QueryFilter(QueryFilter.FieldOptions.AvailableSlots, "0", QueryFilter.OpOptions.GT),
+                new QueryFilter(QueryFilter.FieldOptions.S1, buildTag, QueryFilter.OpOptions.EQ)
+            },
+            Order = new List<QueryOrder> { new QueryOrder(oldestFirst, QueryOrder.FieldOptions.Created) }
         });
-        return await ConnectAsClient(found);
+        return open.Results;
     }
 
     private async Task<Lobby> ConnectAsClient(Lobby found)
@@ -190,7 +214,51 @@ public class DuelMatchmaker : MonoBehaviour
             allocation.AllocationIdBytes, allocation.Key, allocation.ConnectionData, allocation.HostConnectionData);
 
         network.StartClient();
+        GiveUpIfNoHost(found.Id);
         return found;
+    }
+
+    /// <summary>
+    /// A room whose host quit without closing it (app killed, Play stopped) stays listed for about
+    /// 30 s, and joining it never connects. If the host hasn't answered in time, mark the room as
+    /// dead, leave it and search again (joining another room or creating one).
+    /// </summary>
+    private async void GiveUpIfNoHost(string roomId)
+    {
+        await Task.Delay(TimeSpan.FromSeconds(joinTimeout));
+        if (this == null || Current != Status.Joining || lobby == null || lobby.Id != roomId) return;
+
+        Debug.LogWarning($"[DuelMatchmaker] No answer from the host of {lobby.LobbyCode}; looking for another room.");
+        AbandonJoin(roomId);
+    }
+
+    /// <summary>Leaves a room we could not enter, never tries it again, and searches afresh.</summary>
+    private async void AbandonJoin(string roomId)
+    {
+        if (deadRooms.Contains(roomId)) return;
+        deadRooms.Add(roomId);
+        merging = true;
+        lobby = null;
+        network.Shutdown();
+        while (network.ShutdownInProgress) await Task.Delay(50);
+        merging = false;
+        try { await LobbyService.Instance.RemovePlayerAsync(roomId, AuthenticationService.Instance.PlayerId); }
+        catch (Exception) { /* the room is gone anyway */ }
+
+        try
+        {
+            SetStatus(Status.Searching);
+            lobby = await JoinOrCreate();
+            if (IsLobbyHost)
+            {
+                StartCoroutine(Heartbeat(lobby.Id, 15f));
+                MergeIntoOlderRoom();
+            }
+        }
+        catch (Exception e)
+        {
+            SetStatus(Status.Failed, e.Message);
+        }
     }
 
     private async Task<Lobby> Create()
@@ -269,6 +337,7 @@ public class DuelMatchmaker : MonoBehaviour
                     SetStatus(Status.Searching);
                     lobby = await JoinOrCreate();
                     if (IsLobbyHost) StartCoroutine(Heartbeat(lobby.Id, 15f));
+                    else return; // joined another room; GiveUpIfNoHost watches that one
                 }
                 catch (Exception again)
                 {
@@ -281,21 +350,10 @@ public class DuelMatchmaker : MonoBehaviour
 
     private async Task<Lobby> FindOlderRoom()
     {
-        QueryResponse open = await LobbyService.Instance.QueryLobbiesAsync(new QueryLobbiesOptions
-        {
-            Count = 10,
-            Filters = new List<QueryFilter>
-            {
-                new QueryFilter(QueryFilter.FieldOptions.AvailableSlots, "0", QueryFilter.OpOptions.GT),
-                new QueryFilter(QueryFilter.FieldOptions.S1, buildTag, QueryFilter.OpOptions.EQ)
-            },
-            Order = new List<QueryOrder> { new QueryOrder(true, QueryOrder.FieldOptions.Created) }
-        });
-
-        foreach (Lobby other in open.Results)
+        foreach (Lobby other in await OpenRooms(true))
         {
             if (lobby == null) return null;
-            if (other.Id == lobby.Id) continue;
+            if (other.Id == lobby.Id || deadRooms.Contains(other.Id)) continue;
 
             bool older = other.Created < lobby.Created ||
                          (other.Created == lobby.Created && string.CompareOrdinal(other.Id, lobby.Id) < 0);
@@ -341,11 +399,50 @@ public class DuelMatchmaker : MonoBehaviour
 
         if (network.IsHost && clientId != network.LocalClientId)
         {
-            SetStatus(Status.RivalLeft, "El rival se desconectó");
+            if (Current == Status.WaitingForRival)
+            {
+                // Someone joined the room but Netcode never let them in (different build, or their
+                // connection dropped while entering): keep waiting and free their lobby seat.
+                Debug.LogWarning("[DuelMatchmaker] A player reached the room but could not enter.");
+                SetStatus(Status.WaitingForRival, $"Sala {lobby?.LobbyCode}\nUn jugador no pudo entrar: ¿tienen el mismo APK?");
+                FreeLobbySeats();
+            }
+            else
+            {
+                SetStatus(Status.RivalLeft, "El rival se desconectó");
+            }
         }
         else if (!network.IsHost)
         {
-            SetStatus(Status.RivalLeft, "Se perdió la conexión con el anfitrión");
+            if (Current == Status.Joining && lobby != null)
+            {
+                // Never got in: dead room or refused by the host. Try another room instead of stopping here.
+                string reason = network.DisconnectReason;
+                Debug.LogWarning($"[DuelMatchmaker] Could not enter room {lobby.LobbyCode}: {reason}");
+                AbandonJoin(lobby.Id);
+            }
+            else
+            {
+                SetStatus(Status.RivalLeft, "Se perdió la conexión con el anfitrión");
+            }
+        }
+    }
+
+    /// <summary>Removes everyone but the host from our lobby, so its free seat is listed again.</summary>
+    private async void FreeLobbySeats()
+    {
+        if (lobby == null || !IsLobbyHost) return;
+        try
+        {
+            Lobby fresh = await LobbyService.Instance.GetLobbyAsync(lobby.Id);
+            foreach (Player player in fresh.Players)
+            {
+                if (player.Id != fresh.HostId) await LobbyService.Instance.RemovePlayerAsync(fresh.Id, player.Id);
+            }
+        }
+        catch (Exception e)
+        {
+            Debug.Log($"[DuelMatchmaker] Could not free the lobby seat: {e.Message}");
         }
     }
 
