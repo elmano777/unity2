@@ -71,6 +71,9 @@ public class Weapon : MonoBehaviour
     [Tooltip("How fast the visible bullet travels, in metres per second. Damage stays instant.")]
     [SerializeField] private float bulletSpeed = 140f;
 
+    /// <summary>Raised after every shot with where it started and where it ended, so the rival's screen can draw it.</summary>
+    public event System.Action<Vector3, Vector3> Shot;
+
     private float nextFireTime;
     private float tracerHideTime;
 
@@ -189,6 +192,7 @@ public class Weapon : MonoBehaviour
 
         PlayFeedback(origin, endPoint);
         GameEvents.RaiseShotFired();
+        Shot?.Invoke(origin, endPoint);
 
         return true;
     }

@@ -43,3 +43,4 @@ Assets/StreamingAssets/RuntimeActionBindings.json*
 /ProjectSettings/ShaderGraphSettings.asset
 /ProjectSettings/URPProjectSettings.asset
 *.vsconfig
+/Build/

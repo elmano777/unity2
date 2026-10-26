@@ -161,8 +161,9 @@ public class MatchManager : MonoBehaviour
             return;
         }
 
-        // Only the rival's minions count as the player's farm.
-        if (faction == Faction.Enemy)
+        // Only the rival's minions count as this player's farm: Sapphire's for the host, Amber's for
+        // the player who joined.
+        if (faction == FactionUtility.Opposite(MatchNet.LocalFaction))
         {
             stats.minionsKilled += 1;
         }
@@ -178,7 +179,7 @@ public class MatchManager : MonoBehaviour
 
     private void OnTowerDestroyed(Structure tower, Faction faction)
     {
-        if (faction == Faction.Enemy)
+        if (faction == FactionUtility.Opposite(MatchNet.LocalFaction))
         {
             stats.towersDestroyed += 1;
         }
@@ -186,13 +187,13 @@ public class MatchManager : MonoBehaviour
 
     private void OnPatronDestroyed(Faction losingFaction)
     {
-        if (losingFaction == Faction.Enemy)
+        if (losingFaction == FactionUtility.Opposite(MatchNet.LocalFaction))
         {
             stats.patronDestroyed = true;
             stats.secondsToPatron = elapsedSeconds;
             Finish(MatchState.Win, MatchResult.Win);
         }
-        else if (losingFaction == Faction.Player)
+        else if (losingFaction == MatchNet.LocalFaction)
         {
             Finish(MatchState.Lose, MatchResult.Lose);
         }

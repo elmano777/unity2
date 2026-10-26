@@ -5062,7 +5062,7 @@ MonoBehaviour:
   range: 60
   hitMask:
     serializedVersion: 2
-    m_Bits: 5888
+    m_Bits: 14080
   owner: 1
   fireAction: {fileID: 0}
   useDefaultBindings: 1

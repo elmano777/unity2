@@ -132,6 +132,8 @@ public class MinionAgent : MonoBehaviour
     private Vector3 visualBasePosition;
     private Quaternion visualBaseRotation;
     private bool movedThisFrame;
+    private Vector3 replicaLastPosition;
+    private bool replicaTracked;
 
     /// <summary>Current behaviour, exposed for debugging and for a future bot to read.</summary>
     public State CurrentState { get; private set; } = State.Advancing;
@@ -172,8 +174,39 @@ public class MinionAgent : MonoBehaviour
             healBeam.enabled = false;
         }
 
+        if (health.IsReplica)
+        {
+            TrackReplicaMotion();
+        }
+
         ApplyWalkMotion();
         movedThisFrame = false;
+    }
+
+    /// <summary>
+    /// The joining player's copy has no AI: the host moves the minion and the network transform moves
+    /// this one. The gait is read off that movement so both screens show the same walk.
+    /// </summary>
+    private void TrackReplicaMotion()
+    {
+        Vector3 position = transform.position;
+
+        if (!replicaTracked)
+        {
+            replicaLastPosition = position;
+            replicaTracked = true;
+        }
+
+        float travelled = Vector3.Distance(position, replicaLastPosition);
+        replicaLastPosition = position;
+
+        // Below ~0.15 m/s it is interpolation settling, not a step.
+        movedThisFrame = travelled > 0.15f * Time.deltaTime;
+
+        if (movedThisFrame)
+        {
+            walkPhase += travelled * stepsPerMetre * 2f;
+        }
     }
 
     /// <summary>
@@ -246,7 +279,8 @@ public class MinionAgent : MonoBehaviour
 
     private void Update()
     {
-        if (CurrentState == State.Dead || definition == null)
+        // The rival's machine only watches: the host decides where every minion goes and who it hits.
+        if (CurrentState == State.Dead || definition == null || health.IsReplica)
         {
             return;
         }
@@ -652,7 +686,13 @@ public class MinionAgent : MonoBehaviour
         }
 
         GameEvents.RaiseMinionKilled(faction);
-        DropSouls();
+
+        // Souls are created once, by the host; the rival's copy receives them over the network.
+        if (!health.IsReplica)
+        {
+            DropSouls();
+        }
+
         StartCoroutine(FadeOut());
     }
 
@@ -716,7 +756,11 @@ public class MinionAgent : MonoBehaviour
             yield return null;
         }
 
-        Destroy(gameObject);
+        // The host removes the networked minion; the copy just stays invisible until that arrives.
+        if (!health.IsReplica)
+        {
+            Destroy(gameObject);
+        }
     }
 
     /// <summary>Base colour texture of a glTF, URP or built-in material, whichever it has.</summary>
@@ -764,12 +808,14 @@ public class MinionAgent : MonoBehaviour
                 : Quaternion.Euler(0f, 360f / drops * i, 0f) * Vector3.forward * 0.35f;
 
             Vector3 position = soulOrigin.position + offset + Vector3.up * 0.4f;
-            GameObject spawned = Instantiate(soulPrefab, position, Quaternion.identity);
 
-            if (spawned.TryGetComponent(out SoulPickup pickup))
+            MatchNet.Spawn(soulPrefab, position, Quaternion.identity, spawned =>
             {
-                pickup.SetValue(perDrop);
-            }
+                if (spawned.TryGetComponent(out SoulPickup pickup))
+                {
+                    pickup.SetValue(perDrop);
+                }
+            });
 
             GameEvents.RaiseSoulDropped(position);
         }

@@ -43,6 +43,18 @@ public class Health : MonoBehaviour, IDamageable
 
     public bool IsAlive { get; private set; } = true;
 
+    /// <summary>
+    /// True on the machine that only mirrors this target (the joining player's copy of a minion or
+    /// tower). A replica never decides damage, deaths or drops: it shows what the host sent.
+    /// </summary>
+    public bool IsReplica { get; private set; }
+
+    /// <summary>
+    /// Set on a replica by the network layer. Receives a hit that already passed the faction check
+    /// and returns true when it forwarded it to the host, so the hit is not applied here as well.
+    /// </summary>
+    public Func<DamageInfo, bool> DamageForwarder { get; set; }
+
     public float CurrentHealth => currentHealth;
 
     public float MaxHealth => maxHealth;
@@ -95,6 +107,11 @@ public class Health : MonoBehaviour, IDamageable
             return;
         }
 
+        if (DamageForwarder != null && DamageForwarder(info))
+        {
+            return;
+        }
+
         float applied = Mathf.Max(1f, info.amount - damageReduction);
         currentHealth -= applied;
 
@@ -105,6 +122,43 @@ public class Health : MonoBehaviour, IDamageable
         {
             Die(info);
         }
+    }
+
+    /// <summary>Marks this Health as a mirror of the host's. See <see cref="IsReplica"/>.</summary>
+    public void MarkReplica()
+    {
+        IsReplica = true;
+    }
+
+    /// <summary>
+    /// Replica only: takes the host's numbers as they are. Raises <see cref="HealthChanged"/> for
+    /// the health bars and, the moment it reaches zero, <see cref="Killed"/> so the body fades out.
+    /// </summary>
+    public void ApplyReplica(Faction newFaction, float current, float max)
+    {
+        faction = newFaction;
+        maxHealth = Mathf.Max(1f, max);
+        currentHealth = Mathf.Clamp(current, 0f, maxHealth);
+
+        bool wasAlive = IsAlive;
+        IsAlive = currentHealth > 0f;
+
+        HealthChanged?.Invoke(currentHealth, maxHealth);
+
+        if (wasAlive && !IsAlive)
+        {
+            DamageInfo none = default;
+            Killed?.Invoke(none);
+            GameEvents.RaiseDied(gameObject, none);
+        }
+    }
+
+    /// <summary>Brings a dead target back at full health: the player respawning at their end.</summary>
+    public void Revive()
+    {
+        currentHealth = maxHealth;
+        IsAlive = true;
+        HealthChanged?.Invoke(currentHealth, maxHealth);
     }
 
     /// <summary>Restores hit points without going over the maximum. Used by shop items.</summary>

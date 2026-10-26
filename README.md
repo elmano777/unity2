@@ -39,11 +39,23 @@ Proyecto final de **CS2H01 – Interacción Humano-Computador** (UTEC, ciclo 202
 
 Verificado en Play Mode sin visor. Pendiente: probar todo con el Quest y una partida real entre dos visores.
 
+## Avance 3 (semana 12)
+
+- **El anfitrión manda en el mundo (RF-08, RF-09).** Los minions, las torres y las almas los crea y los mueve el anfitrión; el que se une los ve como copias (`NetworkHealth`, `NetworkTransform`, `NetworkSoul`, `NetworkTower`). Nada aparece hasta que el rival entra a la sala (`MatchNet`).
+- **Disparo y daño.** Los disparos del que se une viajan al anfitrión, que aplica el daño y lo publica: los dos ven las mismas barras de vida y las mismas muertes. Cada jugador tiene un cuerpo (cápsula bajo la cabeza, capa `Rival` para el otro) que los minions y las torres atacan y que el rival puede disparar; al caer reaparece a los 5 s en su lado. El rival ve el trazador de cada disparo.
+- **Almas.** El anfitrión crea las almas; quien dispare primero se queda con ellas y el anfitrión le paga a su cartera.
+- **Una torre por bando.** `StructureSpawner` levanta la torre Guardian de cada lado; cada jugador ataca la del otro.
+- **Mi misión (RF-04, RF-13).** Práctica sin conexión en 6 pasos con panel flotante de pistas (`HintBoard`, `MissionGuide`): caminar, girar, disparar, eliminar un minion, recoger un alma y destruir la torre. Al terminar se marca como completada. En la práctica no se puede morir y solo juega el bando rival.
+- **Arreglo de conexión.** La etiqueta de sala se calculaba con un hash de configuración que Netcode guardaba antes de registrar los prefabs; el anfitrión rechazaba al que se unía con "NetworkConfig mismatch".
+
+Verificado con el editor de anfitrión y un cliente de Windows: ambos ven los mismos minions, torres y almas, y los golpes del cliente (a minions, torre, almas y al anfitrión) llegan al anfitrión. Pendiente: probarlo con dos Quest.
+
+Pasos de editor nuevos: `Deadlock/Setup/18` (red de minions, almas, torre y cuerpo) y `19` (Mi misión). Para probar el duelo sin visores: `Deadlock/Debug/Build Windows Test Client` y abrir el cliente con `-selftest` mientras el editor hace de anfitrión; `DuelDiagnostics` escribe en el log lo que ve cada lado.
+
 ## Próximos avances
 
 | Avance | Semana | Contenido |
 |---|---|---|
-| 3 | 12 | Partida online completa (minions y daño sincronizados), disparo, almas y práctica guiada ("Mi misión") |
 | 4 | 13 | Habilidades, tienda, torres en secuencia y patrón final |
 | 5 | 14 | Pantalla final con resumen y voto, estadísticas en archivo, pruebas con usuarios |
 
@@ -53,6 +65,6 @@ Verificado en Play Mode sin visor. Pendiente: probar todo con el Quest y una par
 2. Conectar el Quest por Quest Link.
 3. Darle Play: siempre arranca en `Intro` (se desactiva con `Deadlock/Play From Title Screen` para jugar la escena abierta).
 
-Las escenas se arman con los scripts del menú `Deadlock/Setup/1..17`, no a mano.
+Las escenas se arman con los scripts del menú `Deadlock/Setup/1..19`, no a mano.
 
 **Para jugar online entre dos visores:** los dos deben instalar **el mismo APK**, compilado desde el mismo commit. Un APK de otra versión no puede entrar a la sala.

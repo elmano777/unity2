@@ -34,17 +34,29 @@ public class SoulPickup : MonoBehaviour, IDamageable
     private Vector3 anchor;
     private float age;
     private bool collected;
+    private bool claimSent;
     private Vector3 baseScale;
+    private NetworkSoul network;
 
     /// <summary>Souls belong to nobody, so any shot can claim them.</summary>
     public Faction Faction => Faction.Neutral;
 
     public bool IsAlive => !collected;
 
+    /// <summary>Souls this pickup is worth.</summary>
+    public int Value => value;
+
     private void Awake()
     {
         anchor = transform.position;
         baseScale = transform.localScale;
+        network = GetComponent<NetworkSoul>();
+    }
+
+    /// <summary>Re-reads where the soul floats, once the network has placed it.</summary>
+    public void ResetAnchor()
+    {
+        anchor = transform.position;
     }
 
     /// <summary>Overrides how many souls this pickup is worth, set by the minion that dropped it.</summary>
@@ -70,7 +82,12 @@ public class SoulPickup : MonoBehaviour, IDamageable
         float remaining = lifetime - age;
         if (remaining <= 0f)
         {
-            Destroy(gameObject);
+            // The rival's copy keeps its shrunken soul until the host removes the real one.
+            if (!IsMirror)
+            {
+                Destroy(gameObject);
+            }
+
             return;
         }
 
@@ -88,15 +105,34 @@ public class SoulPickup : MonoBehaviour, IDamageable
             return;
         }
 
-        // Only the player farms souls; a stray minion shot shouldn't consume them.
-        if (info.source != Faction.Player)
+        // Only a ritualist farms souls (either side); a stray minion shot shouldn't consume them.
+        if (info.source == Faction.Neutral)
         {
+            return;
+        }
+
+        if (network != null && network.IsSpawned)
+        {
+            // In a duel the host decides who got it, so both players can't be paid for the same soul.
+            if (!claimSent)
+            {
+                claimSent = true;
+                network.Claim();
+            }
+
             return;
         }
 
         Collect();
     }
 
+    /// <summary>True on the joining player's copy of a soul the host created.</summary>
+    private bool IsMirror => network != null && network.IsSpawned && !network.IsServer;
+
+    /// <summary>
+    /// Offline path: pays the wallet and removes the soul. Online, the host pays the winner of the
+    /// claim through <see cref="NetworkSoul"/> and every screen then calls <see cref="PlayCollected"/>.
+    /// </summary>
     private void Collect()
     {
         collected = true;
@@ -111,6 +147,15 @@ public class SoulPickup : MonoBehaviour, IDamageable
             GameEvents.RaiseSoulsCollected(value);
         }
 
+        PlayCollected();
+        Destroy(gameObject);
+    }
+
+    /// <summary>Marks the soul as taken and plays the pickup sound and spark. Safe to call once per screen.</summary>
+    public void PlayCollected()
+    {
+        collected = true;
+
         if (collectClip != null)
         {
             AudioSource.PlayClipAtPoint(collectClip, transform.position);
@@ -121,6 +166,10 @@ public class SoulPickup : MonoBehaviour, IDamageable
             Instantiate(collectEffect, transform.position, Quaternion.identity);
         }
 
-        Destroy(gameObject);
+        // Gone from view at once; the host removes the networked object a moment later.
+        foreach (Renderer renderer in GetComponentsInChildren<Renderer>())
+        {
+            renderer.enabled = false;
+        }
     }
 }
