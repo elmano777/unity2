@@ -86,6 +86,18 @@ public class MinionAgent : MonoBehaviour
 
     [SerializeField] private float healBeamDuration = 0.4f;
 
+    [Tooltip("Seconds from the throw animation starting until the orb leaves the medic's hand.")]
+    [SerializeField] private float healOrbDelay = 0.2f;
+
+    [Tooltip("Seconds the orb takes to reach the ally; the heal lands when it does.")]
+    [SerializeField] private float healOrbFlightTime = 0.4f;
+
+    /// <summary>Seconds between the throw starting and the orb leaving the hand.</summary>
+    public float HealOrbDelay => healOrbDelay;
+
+    /// <summary>Seconds the orb is in the air.</summary>
+    public float HealOrbFlightTime => healOrbFlightTime;
+
     [Header("Spacing")]
     [Tooltip("Personal space as a fraction of the capsule radius. Minions closer than the sum of " +
              "both radii push each other apart, so a wave reads as a crowd and not as one model.")]
@@ -126,6 +138,7 @@ public class MinionAgent : MonoBehaviour
     private Vector3 lanePosition;
     private Health healTarget;
     private float nextHealTime;
+    private float nextHealScanTime;
     private float healBeamHideTime;
     private float walkPhase;
     private float currentLean;
@@ -134,6 +147,28 @@ public class MinionAgent : MonoBehaviour
     private bool movedThisFrame;
     private Vector3 replicaLastPosition;
     private bool replicaTracked;
+
+    /// <summary>Something the minion does that the model should act out.</summary>
+    public enum Action
+    {
+        /// <summary>A strike or a shot at an enemy.</summary>
+        Attack,
+
+        /// <summary>A medic throwing its healing orb at an ally.</summary>
+        Heal,
+    }
+
+    /// <summary>Raised when the minion acts, with the point it acts on. The animator and the orb listen.</summary>
+    public event System.Action<Action, Vector3> Acted;
+
+    /// <summary>
+    /// Plays an action on a copy that has no AI of its own: the network tells the joining player's
+    /// minion what the host's just did.
+    /// </summary>
+    public void ShowAction(Action action, Vector3 point)
+    {
+        Acted?.Invoke(action, point);
+    }
 
     /// <summary>Current behaviour, exposed for debugging and for a future bot to read.</summary>
     public State CurrentState { get; private set; } = State.Advancing;
@@ -285,15 +320,12 @@ public class MinionAgent : MonoBehaviour
             return;
         }
 
-        // Medics never fight, so they run an entirely separate loop rather than sharing the
-        // combat states and having to opt out of each one.
+        // A medic fights like a melee minion and, on top of that, throws healing orbs at wounded allies.
+        UpdateFighter();
+
         if (definition.role == MinionRole.Medic)
         {
             UpdateMedic();
-        }
-        else
-        {
-            UpdateFighter();
         }
 
         KeepSpacing();
@@ -324,40 +356,25 @@ public class MinionAgent : MonoBehaviour
     }
 
     /// <summary>
-    /// Medic loop: find the most hurt ally within reach, walk to a standoff distance behind it and
-    /// pulse healing. With nobody to heal it just walks the lane with the rest of the wave.
+    /// Medic extra: every few seconds, throw an orb at the most hurt ally within reach. It keeps
+    /// walking and fighting while it does; with nobody hurt nearby it simply fights.
     /// </summary>
     private void UpdateMedic()
     {
-        if (Time.time >= nextScanTime)
+        if (Time.time >= nextHealScanTime)
         {
-            nextScanTime = Time.time + scanInterval;
+            nextHealScanTime = Time.time + scanInterval;
             healTarget = FindWoundedAlly();
         }
 
         if (healTarget == null || !healTarget.IsAlive)
         {
             healTarget = null;
-            CurrentState = State.Advancing;
-            Advance();
             return;
         }
 
-        CurrentState = State.Healing;
-
         Vector3 allyPosition = healTarget.transform.position;
         float distance = Vector3.Distance(transform.position, allyPosition);
-
-        // Hang back: close in only when out of reach, and stop short so the medic doesn't walk
-        // into the front line it is trying to keep alive.
-        if (distance > definition.medicStandoff)
-        {
-            MoveToward(allyPosition);
-        }
-        else
-        {
-            FaceToward(allyPosition);
-        }
 
         if (distance > definition.healRange || Time.time < nextHealTime)
         {
@@ -365,7 +382,10 @@ public class MinionAgent : MonoBehaviour
         }
 
         nextHealTime = Time.time + definition.healInterval;
-        healTarget.Heal(definition.healAmount);
+
+        // The medic throws an orb and the ally is healed when it lands, not the moment it leaves.
+        StartCoroutine(DeliverHeal(healTarget, definition.healAmount));
+        Acted?.Invoke(Action.Heal, allyPosition + Vector3.up * 0.8f);
 
         if (healBeam != null)
         {
@@ -374,6 +394,73 @@ public class MinionAgent : MonoBehaviour
             healBeam.SetPosition(1, allyPosition + Vector3.up * 0.8f);
             healBeam.enabled = true;
             healBeamHideTime = Time.time + healBeamDuration;
+        }
+    }
+
+    /// <summary>
+    /// Raised once when a medic dies, on the host: where the orb starts, who it flies to and whom it will
+    /// heal when it arrives. The animator draws it and applies the heal.
+    /// </summary>
+    public event System.Action<Vector3, Transform, Health> DeathOrb;
+
+    /// <summary>Hit points the medic's orbs restore.</summary>
+    public float HealAmount => definition != null ? definition.healAmount : 0f;
+
+    /// <summary>Plays the death orb on the joining player's copy: the host decided who it flies to.</summary>
+    public void ShowDeathOrb(Vector3 from, Transform target)
+    {
+        DeathOrb?.Invoke(from, target, null);
+    }
+
+    private void DropDeathOrb(DamageInfo info)
+    {
+        Health recipient = FindPlayerBody(info.source);
+
+        if (recipient != null)
+        {
+            DeathOrb?.Invoke(transform.position + Vector3.up * 1f, recipient.transform, recipient);
+        }
+    }
+
+    /// <summary>The nearest living player body of the given side: the one that killed this medic.</summary>
+    private Health FindPlayerBody(Faction side)
+    {
+        Health best = null;
+        float bestDistance = float.MaxValue;
+
+        foreach (Health candidate in FindObjectsOfType<Health>())
+        {
+            if (!candidate.IsAlive || candidate.Faction != side)
+            {
+                continue;
+            }
+
+            string layer = LayerMask.LayerToName(candidate.gameObject.layer);
+
+            if (layer != "PlayerBody" && layer != "Rival")
+            {
+                continue;
+            }
+
+            float distance = (candidate.transform.position - transform.position).sqrMagnitude;
+
+            if (distance < bestDistance)
+            {
+                best = candidate;
+                bestDistance = distance;
+            }
+        }
+
+        return best;
+    }
+
+    private IEnumerator DeliverHeal(Health target, float amount)
+    {
+        yield return new WaitForSeconds(healOrbDelay + healOrbFlightTime);
+
+        if (target != null && target.IsAlive && CurrentState != State.Dead)
+        {
+            target.Heal(amount);
         }
     }
 
@@ -498,6 +585,7 @@ public class MinionAgent : MonoBehaviour
             .AtImpact(currentTargetTransform.position, (currentTargetTransform.position - transform.position).normalized);
 
         currentTarget.TakeDamage(info);
+        Acted?.Invoke(Action.Attack, currentTargetTransform.position);
     }
 
     private void ReturnToLane()
@@ -687,6 +775,12 @@ public class MinionAgent : MonoBehaviour
 
         GameEvents.RaiseMinionKilled(faction);
 
+        // A dying medic leaves one last orb besides its souls, and it flies to whoever killed it.
+        if (definition != null && definition.role == MinionRole.Medic && !health.IsReplica)
+        {
+            DropDeathOrb(info);
+        }
+
         // Souls are created once, by the host; the rival's copy receives them over the network.
         if (!health.IsReplica)
         {
@@ -711,8 +805,14 @@ public class MinionAgent : MonoBehaviour
         Transform body = visualRoot != null ? visualRoot : transform;
         var parts = new List<(Renderer renderer, int index, MaterialPropertyBlock block)>();
 
-        foreach (MeshRenderer renderer in body.GetComponentsInChildren<MeshRenderer>())
+        foreach (Renderer renderer in body.GetComponentsInChildren<Renderer>())
         {
+            // Skinned models fade like static ones; lines and particles are left alone.
+            if (!(renderer is MeshRenderer) && !(renderer is SkinnedMeshRenderer))
+            {
+                continue;
+            }
+
             Material[] originals = renderer.sharedMaterials;
             var faded = new Material[originals.Length];
 

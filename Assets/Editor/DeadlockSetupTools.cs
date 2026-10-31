@@ -62,10 +62,10 @@ public static class DeadlockSetupTools
     {
         new MinionSpec { modelName = "Amber_Melee",      role = MinionRole.Melee,   health = 220f, speed = 2.4f, damage = 22f, attackInterval = 1.0f, attackRange = 2.2f, detectionRange = 7f,  souls = 14, drops = 1 },
         new MinionSpec { modelName = "Amber_Trooper",    role = MinionRole.Trooper, health = 130f, speed = 2.1f, damage = 12f, attackInterval = 1.2f, attackRange = 9f,   detectionRange = 12f, souls = 10, drops = 1 },
-        new MinionSpec { modelName = "Amber_Medic",      role = MinionRole.Medic,   health = 90f,  speed = 2.2f, damage = 0f,  attackInterval = 1.5f, attackRange = 0f,   detectionRange = 8f,  souls = 25, drops = 2 },
+        new MinionSpec { modelName = "Amber_Medic",      role = MinionRole.Medic,   health = 90f,  speed = 2.2f, damage = 10f, attackInterval = 1.3f, attackRange = 2.2f, detectionRange = 8f,  souls = 25, drops = 2 },
         new MinionSpec { modelName = "Sapphire_Melee",   role = MinionRole.Melee,   health = 220f, speed = 2.4f, damage = 22f, attackInterval = 1.0f, attackRange = 2.2f, detectionRange = 7f,  souls = 14, drops = 1 },
         new MinionSpec { modelName = "Sapphire_Trooper", role = MinionRole.Trooper, health = 130f, speed = 2.1f, damage = 12f, attackInterval = 1.2f, attackRange = 9f,   detectionRange = 12f, souls = 10, drops = 1 },
-        new MinionSpec { modelName = "Sapphire_Medic",   role = MinionRole.Medic,   health = 90f,  speed = 2.2f, damage = 0f,  attackInterval = 1.5f, attackRange = 0f,   detectionRange = 8f,  souls = 25, drops = 2 },
+        new MinionSpec { modelName = "Sapphire_Medic",   role = MinionRole.Medic,   health = 90f,  speed = 2.2f, damage = 10f, attackInterval = 1.3f, attackRange = 2.2f, detectionRange = 8f,  souls = 25, drops = 2 },
     };
 
     [MenuItem("Deadlock/Setup/1 - Layers, Minion Data and Prefabs")]
