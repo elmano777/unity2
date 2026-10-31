@@ -67,7 +67,8 @@ public class Tower : Structure
             beam.enabled = false;
         }
 
-        if (disabled || !IsStanding || Time.time < nextAttackTime)
+        // The rival's copy only draws the tower; the host aims and fires for both screens.
+        if (disabled || !IsStanding || Health.IsReplica || Time.time < nextAttackTime)
         {
             return;
         }
@@ -176,6 +177,16 @@ public class Tower : Structure
 
         target.TakeDamage(info);
 
+        ShowShot(targetPoint);
+        Fired?.Invoke(targetPoint);
+    }
+
+    /// <summary>Raised on the machine that fires, with the point hit, so the rival's screen can draw the same shot.</summary>
+    public event System.Action<Vector3> Fired;
+
+    /// <summary>The beam and sound of one shot. Public so the rival's copy can play it when the host fires.</summary>
+    public void ShowShot(Vector3 targetPoint)
+    {
         if (audioSource != null && attackClip != null)
         {
             audioSource.PlayOneShot(attackClip);

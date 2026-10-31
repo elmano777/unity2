@@ -292,6 +292,9 @@ GameObject:
   - component: {fileID: 6840117213216157897}
   - component: {fileID: 7479446030838107964}
   - component: {fileID: 3587313274215469666}
+  - component: {fileID: 8741394246634572713}
+  - component: {fileID: 4630918017844391635}
+  - component: {fileID: 5298358561940096720}
   m_Layer: 9
   m_Name: Amber_Trooper
   m_TagString: Untagged
@@ -385,7 +388,7 @@ MonoBehaviour:
     m_Bits: 256
   targetMask:
     serializedVersion: 2
-    m_Bits: 3584
+    m_Bits: 11776
   scanInterval: 0.25
   allyMask:
     serializedVersion: 2
@@ -396,6 +399,70 @@ MonoBehaviour:
   separationSpeed: 3
   deathFadeMaterial: {fileID: 2100000, guid: c9f070d61ce90ca4b8065eeb52fffe10, type: 2}
   deathFadeDuration: 0.5
+--- !u!114 &8741394246634572713
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8924671018884241433}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d5a57f767e5e46a458fc5d3c628d0cbb, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  GlobalObjectIdHash: 262613898
+  InScenePlacedSourceGlobalObjectIdHash: 0
+  AlwaysReplicateAsRoot: 0
+  SynchronizeTransform: 1
+  ActiveSceneSynchronization: 0
+  SceneMigrationSynchronization: 1
+  SpawnWithObservers: 1
+  DontDestroyWithOwner: 0
+  AutoObjectParentSync: 1
+--- !u!114 &4630918017844391635
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8924671018884241433}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 11a4e3a2271116147a105ae6c0cf9879, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+--- !u!114 &5298358561940096720
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8924671018884241433}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e96cb6065543e43c4a752faaa1468eb1, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  UseUnreliableDeltas: 0
+  SyncPositionX: 1
+  SyncPositionY: 1
+  SyncPositionZ: 1
+  SyncRotAngleX: 0
+  SyncRotAngleY: 1
+  SyncRotAngleZ: 0
+  SyncScaleX: 0
+  SyncScaleY: 0
+  SyncScaleZ: 0
+  PositionThreshold: 0.001
+  RotAngleThreshold: 0.01
+  ScaleThreshold: 0.01
+  UseQuaternionSynchronization: 0
+  UseQuaternionCompression: 0
+  UseHalfFloatPrecision: 0
+  InLocalSpace: 0
+  Interpolate: 1
+  SlerpPosition: 0
 --- !u!1001 &6402917861829548406
 PrefabInstance:
   m_ObjectHideFlags: 0

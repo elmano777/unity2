@@ -63,6 +63,9 @@ public class WaveSpawner : MonoBehaviour
     private readonly List<MinionAgent> alive = new List<MinionAgent>();
     private Coroutine loop;
 
+    /// <summary>Side the minions of this spawner fight for.</summary>
+    public Faction Faction => faction;
+
     /// <summary>How many minions from this spawner are currently in the lane.</summary>
     public int AliveCount
     {
@@ -149,6 +152,10 @@ public class WaveSpawner : MonoBehaviour
 
     private IEnumerator SpawnLoop()
     {
+        // In a duel nothing walks until the rival is in the room, and only the host sends waves:
+        // the joining player's copy of this spawner waits forever and just watches the host's minions.
+        yield return new WaitUntil(() => MatchNet.CanSpawnWorld);
+
         yield return new WaitForSeconds(firstWaveDelay);
 
         while (true)
@@ -192,12 +199,21 @@ public class WaveSpawner : MonoBehaviour
         Vector3 scatter = new Vector3(Random.Range(-spawnScatter, spawnScatter), 0f, Random.Range(-spawnScatter, spawnScatter));
         Vector3 position = spawnPoint.position + scatter;
 
-        GameObject spawned = Instantiate(definition.prefab, position, spawnPoint.rotation);
+        MinionAgent created = null;
 
-        if (spawned.TryGetComponent(out MinionAgent agent))
+        // Configured before it is spawned on the network, so the rival receives it already set up.
+        MatchNet.Spawn(definition.prefab, position, spawnPoint.rotation, spawned =>
         {
-            agent.Initialize(definition, lane, faction, walkReversed);
-            alive.Add(agent);
+            if (spawned.TryGetComponent(out MinionAgent agent))
+            {
+                agent.Initialize(definition, lane, faction, walkReversed);
+                created = agent;
+            }
+        });
+
+        if (created != null)
+        {
+            alive.Add(created);
         }
         else
         {

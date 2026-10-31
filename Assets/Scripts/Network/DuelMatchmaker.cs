@@ -63,6 +63,9 @@ public class DuelMatchmaker : MonoBehaviour
     [Tooltip("Seconds to wait for a room's host to answer before treating the room as abandoned.")]
     [SerializeField] private float joinTimeout = 12f;
 
+    /// <summary>The matchmaker of the open Lane, so the world can wait for the rival (see <see cref="MatchNet"/>).</summary>
+    public static DuelMatchmaker Instance { get; private set; }
+
     public Status Current { get; private set; } = Status.Idle;
 
     /// <summary>Human-readable detail for the current status (e.g. the failure reason).</summary>
@@ -74,6 +77,7 @@ public class DuelMatchmaker : MonoBehaviour
 
     private void Awake()
     {
+        Instance = this;
         network = GetComponent<NetworkManager>();
     }
 
@@ -81,6 +85,15 @@ public class DuelMatchmaker : MonoBehaviour
     {
         bool mission = PlayerPrefs.GetInt(TitleScreenManager.MissionRequestedKey, 0) == 1;
         bool cameFromMenu = GameSession.Instance != null && GameSession.Instance.SelectedHero != null;
+
+#if UNITY_EDITOR
+        // Deadlock/Debug/Force Practice Run: play the Lane straight as "Mi misión", without the menus.
+        if (UnityEditor.EditorPrefs.GetBool("Deadlock.ForcePractice", false))
+        {
+            mission = true;
+            cameFromMenu = true;
+        }
+#endif
 
         if (GameSession.Instance != null)
         {
@@ -115,7 +128,9 @@ public class DuelMatchmaker : MonoBehaviour
             }
 
             // Builds whose networked prefabs or settings differ can't play together: only meet the same build.
-            buildTag = network.NetworkConfig.GetConfig().ToString("X");
+            // Not cached (false): a hash taken before Netcode registers the prefabs, if kept, is what
+            // the joining player would later send, and the host (which has the prefabs) refuses it.
+            buildTag = network.NetworkConfig.GetConfig(false).ToString("X");
 
             SetStatus(Status.Searching);
             lobby = await JoinOrCreate();
@@ -214,6 +229,7 @@ public class DuelMatchmaker : MonoBehaviour
             allocation.AllocationIdBytes, allocation.Key, allocation.ConnectionData, allocation.HostConnectionData);
 
         network.StartClient();
+        LogConfig("client");
         GiveUpIfNoHost(found.Id);
         return found;
     }
@@ -281,8 +297,16 @@ public class DuelMatchmaker : MonoBehaviour
             allocation.AllocationIdBytes, allocation.Key, allocation.ConnectionData);
 
         network.StartHost();
+        LogConfig("host");
         SetStatus(Status.WaitingForRival, $"Sala {created.LobbyCode}");
         return created;
+    }
+
+    /// <summary>The network setup both players must share, logged so a refused join can be traced.</summary>
+    private void LogConfig(string role)
+    {
+        Debug.Log($"[DuelMatchmaker] {role} config {network.NetworkConfig.GetConfig(false):X} (sent {network.NetworkConfig.GetConfig():X}), " +
+                  $"{network.NetworkConfig.Prefabs.NetworkPrefabOverrideLinks.Count} prefabs, room tag {buildTag}");
     }
 
     /// <summary>
@@ -456,6 +480,11 @@ public class DuelMatchmaker : MonoBehaviour
 
     private void OnDestroy()
     {
+        if (Instance == this)
+        {
+            Instance = null;
+        }
+
         if (network != null)
         {
             network.OnClientConnectedCallback -= OnClientConnected;

@@ -61,6 +61,17 @@ public class Structure : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Sets side and tier at runtime, for towers the lane creates when the duel starts rather than
+    /// ones placed in the scene. Call it before the tower is spawned on the network.
+    /// </summary>
+    public void Setup(Faction newFaction, int newTier)
+    {
+        faction = newFaction;
+        tier = Mathf.Max(1, newTier);
+        health.Configure(faction, ScaledHealth());
+    }
+
     /// <summary>Health for this structure's tier, compounding <see cref="healthPerTier"/>.</summary>
     protected float ScaledHealth()
     {

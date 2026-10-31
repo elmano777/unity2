@@ -9,8 +9,9 @@ using UnityEngine;
 /// <remarks>
 /// The host fights from the Amber end (Faction.Player) and the joining player from the Sapphire
 /// end (Faction.Enemy), so the owner also moves its own rig to its spawn point and puts its body
-/// and weapon on the right side. Minions and damage are still local to each machine; syncing
-/// them is Avance 3.
+/// and weapon on the right side. The host runs the minions, towers, souls and damage (Avance 3);
+/// each player's body here is a capsule under the head with hit points the host owns, so minions
+/// can hurt it and the rival's shots can land on it.
 /// </remarks>
 public class NetworkPlayer : NetworkBehaviour
 {
@@ -38,6 +39,18 @@ public class NetworkPlayer : NetworkBehaviour
     [Tooltip("Layers the hero's feet are put down on, straight below the rival's head.")]
     [SerializeField] private LayerMask groundMask = ~0;
 
+    [Header("Body (what minions, towers and the rival can hit)")]
+    [Tooltip("Hit points of this player, replicated by NetworkHealth. Lives on the Hitbox child.")]
+    [SerializeField] private Health bodyHealth;
+
+    [Tooltip("Capsule that follows the head, a little below it, so the player has a body to shoot at.")]
+    [SerializeField] private Transform bodyHitbox;
+
+    [SerializeField] private float maxHealth = 300f;
+
+    [Tooltip("Seconds a player stays down before coming back at their end of the lane.")]
+    [SerializeField] private float respawnSeconds = 5f;
+
     private readonly NetworkVariable<Vector3> headPosition = Owned(Vector3.zero);
     private readonly NetworkVariable<Quaternion> headRotation = Owned(Quaternion.identity);
     private readonly NetworkVariable<Vector3> leftPosition = Owned(Vector3.zero);
@@ -60,12 +73,16 @@ public class NetworkPlayer : NetworkBehaviour
     {
         heroIndex.OnValueChanged += OnHeroChanged;
 
+        SetUpBody();
+
         if (IsOwner)
         {
             rig = FindObjectOfType<OVRCameraRig>();
             visualRoot.SetActive(false);
             MoveRigToSpawn();
             ApplyLocalSide();
+            ReplaceRigBody();
+            HookOwnWeapons();
             heroIndex.Value = FindHeroIndex();
         }
         else
@@ -77,6 +94,188 @@ public class NetworkPlayer : NetworkBehaviour
     public override void OnNetworkDespawn()
     {
         heroIndex.OnValueChanged -= OnHeroChanged;
+        UnhookOwnWeapons();
+
+        if (bodyHealth != null)
+        {
+            bodyHealth.HealthChanged -= OnBodyHealthChanged;
+            bodyHealth.Killed -= OnBodyKilled;
+        }
+    }
+
+    /// <summary>
+    /// Gives the player a body to hit. The host decides its side and hit points (NetworkHealth then
+    /// copies them to the other screen); the layer tells the weapons apart: your own body is on
+    /// PlayerBody, which your gun ignores, and the rival's is on Rival, which it hits.
+    /// </summary>
+    private void SetUpBody()
+    {
+        if (bodyHealth == null)
+        {
+            return;
+        }
+
+        int layer = LayerMask.NameToLayer(IsOwner ? "PlayerBody" : "Rival");
+
+        if (layer >= 0)
+        {
+            bodyHealth.gameObject.layer = layer;
+        }
+
+        if (IsServer)
+        {
+            bodyHealth.Configure(Side, maxHealth);
+            bodyHealth.Killed += OnBodyKilled;
+        }
+
+        bodyHealth.HealthChanged += OnBodyHealthChanged;
+    }
+
+    /// <summary>The Lane's own PlayerBody (the camera capsule from the single-player scene) would be a second body.</summary>
+    private void ReplaceRigBody()
+    {
+        if (rig == null)
+        {
+            return;
+        }
+
+        foreach (Health legacy in rig.GetComponentsInChildren<Health>(true))
+        {
+            if (legacy.TryGetComponent(out Collider collider))
+            {
+                collider.enabled = false;
+            }
+        }
+    }
+
+    private void OnBodyHealthChanged(float current, float max)
+    {
+        bool alive = bodyHealth.IsAlive;
+
+        if (IsOwner)
+        {
+            // Nobody shoots while down.
+            if (rig != null)
+            {
+                foreach (Weapon weapon in rig.GetComponentsInChildren<Weapon>(true))
+                {
+                    weapon.enabled = alive;
+                }
+            }
+        }
+        else if (visualRoot != null)
+        {
+            visualRoot.SetActive(alive);
+        }
+    }
+
+    private void OnBodyKilled(DamageInfo info)
+    {
+        StartCoroutine(RespawnAfterDelay());
+    }
+
+    private System.Collections.IEnumerator RespawnAfterDelay()
+    {
+        yield return new WaitForSeconds(respawnSeconds);
+
+        if (!IsSpawned)
+        {
+            yield break;
+        }
+
+        bodyHealth.Revive();
+        RespawnClientRpc();
+    }
+
+    [ClientRpc]
+    private void RespawnClientRpc()
+    {
+        if (IsOwner)
+        {
+            MoveRigToSpawn();
+        }
+    }
+
+    // ---- Shots: the rival sees a tracer when the other player fires ----
+
+    private Weapon[] ownWeapons = System.Array.Empty<Weapon>();
+
+    private void HookOwnWeapons()
+    {
+        if (rig == null)
+        {
+            return;
+        }
+
+        ownWeapons = rig.GetComponentsInChildren<Weapon>(true);
+
+        foreach (Weapon weapon in ownWeapons)
+        {
+            weapon.Shot += OnOwnShot;
+        }
+    }
+
+    private void UnhookOwnWeapons()
+    {
+        foreach (Weapon weapon in ownWeapons)
+        {
+            if (weapon != null)
+            {
+                weapon.Shot -= OnOwnShot;
+            }
+        }
+    }
+
+    private void OnOwnShot(Vector3 origin, Vector3 end)
+    {
+        if (IsSpawned)
+        {
+            ShotServerRpc(origin, end);
+        }
+    }
+
+    // Cosmetic and frequent: a lost tracer is not worth waiting for.
+    [ServerRpc(Delivery = RpcDelivery.Unreliable)]
+    private void ShotServerRpc(Vector3 origin, Vector3 end)
+    {
+        ShotClientRpc(origin, end);
+    }
+
+    [ClientRpc(Delivery = RpcDelivery.Unreliable)]
+    private void ShotClientRpc(Vector3 origin, Vector3 end)
+    {
+        if (!IsOwner)
+        {
+            DrawRivalTracer(origin, end);
+        }
+    }
+
+    private static Material tracerMaterial;
+
+    private static void DrawRivalTracer(Vector3 origin, Vector3 end)
+    {
+        if (tracerMaterial == null)
+        {
+            tracerMaterial = new Material(Shader.Find("Sprites/Default")) { color = new Color(1f, 0.7f, 0.25f, 0.9f) };
+        }
+
+        var tracer = new GameObject("RivalTracer");
+        LineRenderer line = tracer.AddComponent<LineRenderer>();
+        line.material = tracerMaterial;
+        line.positionCount = 2;
+        line.SetPosition(0, origin);
+        line.SetPosition(1, end);
+        line.widthMultiplier = 0.025f;
+        line.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        Destroy(tracer, 0.06f);
+    }
+
+    private void PlaceHitbox(Vector3 headWorld)
+    {
+        if (bodyHitbox != null)
+        {
+            bodyHitbox.position = headWorld + Vector3.down * 0.35f;
+        }
     }
 
     private void Update()
@@ -112,6 +311,8 @@ public class NetworkPlayer : NetworkBehaviour
         leftRotation.Value = left.rotation;
         rightPosition.Value = right.position;
         rightRotation.Value = right.rotation;
+
+        PlaceHitbox(rig.centerEyeAnchor.position);
     }
 
     private void FollowRemotePose()
@@ -121,6 +322,7 @@ public class NetworkPlayer : NetworkBehaviour
         Follow(head, headPosition.Value, headRotation.Value, t);
         Follow(leftHand, leftPosition.Value, leftRotation.Value, t);
         Follow(rightHand, rightPosition.Value, rightRotation.Value, t);
+        PlaceHitbox(head.position);
 
         // The body hangs under the head and only turns with it around Y, like a torso would.
         Vector3 forward = Vector3.ProjectOnPlane(head.forward, Vector3.up);
