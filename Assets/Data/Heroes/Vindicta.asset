@@ -23,6 +23,12 @@ MonoBehaviour:
     type: 3}
   previewModel: {fileID: 6771613616009355866, guid: c15aa594884fbbb4c95c178e394ae71f,
     type: 3}
+  idleClip: {fileID: 2780532068868305258, guid: 2052fee922d4fe84a914f014b5cbdd93,
+    type: 3}
+  walkClip: {fileID: -8271086668916585561, guid: 2052fee922d4fe84a914f014b5cbdd93,
+    type: 3}
+  rigRootName: Vindicta_Rig
+  walkClipSpeed: 1.5
   introLines:
   - Hathorne's bloodline will pay for his sins.
   - All you need to do is summon the Archmother.
