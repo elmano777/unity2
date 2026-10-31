@@ -22,6 +22,10 @@ MonoBehaviour:
     type: 3}
   previewModel: {fileID: 251762852382048113, guid: c44755f099eec38418f48448229e2796,
     type: 3}
+  idleClip: {fileID: 860415386706527242, guid: 946bd5781e9317841be86c75e34bcde7, type: 3}
+  walkClip: {fileID: 8962348838226199266, guid: 946bd5781e9317841be86c75e34bcde7,
+    type: 3}
+  walkClipSpeed: 1.7
   introLines:
   - You escaped Lost Whisper.
   - You killed your tormentors.

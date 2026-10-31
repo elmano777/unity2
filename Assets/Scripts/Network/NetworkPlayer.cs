@@ -62,6 +62,9 @@ public class NetworkPlayer : NetworkBehaviour
     private OVRCameraRig rig;
     private GameObject weaponVisual;
     private Transform heroBody;
+    private RivalAnimator heroAnimator;
+    private Vector3 lastFloor;
+    private float walkSpeed;
 
     private static NetworkVariable<T> Owned<T>(T value) =>
         new NetworkVariable<T>(value, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
@@ -338,7 +341,19 @@ public class NetworkPlayer : NetworkBehaviour
         if (heroBody != null)
         {
             Quaternion yaw = forward.sqrMagnitude > 0.001f ? Quaternion.LookRotation(forward) : heroBody.rotation;
-            heroBody.SetPositionAndRotation(FloorUnder(head.position), yaw);
+            Vector3 floor = FloorUnder(head.position);
+            heroBody.SetPositionAndRotation(floor, yaw);
+
+            if (heroAnimator != null)
+            {
+                // Horizontal speed of the body, ignoring jumps like a respawn.
+                Vector3 step = Vector3.ProjectOnPlane(floor - lastFloor, Vector3.up);
+                float speed = Time.deltaTime > 0f && step.magnitude < 3f ? step.magnitude / Time.deltaTime : 0f;
+                walkSpeed = Mathf.Lerp(walkSpeed, speed, 1f - Mathf.Exp(-8f * Time.deltaTime));
+                heroAnimator.SetSpeed(walkSpeed);
+            }
+
+            lastFloor = floor;
         }
 
         // Hero name floats over the rival's head and always faces this player.
@@ -475,8 +490,9 @@ public class NetworkPlayer : NetworkBehaviour
 
     /// <summary>
     /// Stands the hero's model in for the primitive head and body. The models are static (no
-    /// skeleton), so the body only turns with the head while the synced hands and gun move on
-    /// their own. The model's own gun is hidden so the rival doesn't carry two.
+    /// skeleton unless the hero has idle and walk clips), so the body only turns with the head while
+    /// the synced hands and gun move on their own. The model's own gun is hidden so the rival
+    /// doesn't carry two.
     /// </summary>
     private void ShowHeroBody(HeroDefinitionSO hero)
     {
@@ -484,6 +500,7 @@ public class NetworkPlayer : NetworkBehaviour
         {
             Destroy(heroBody.gameObject);
             heroBody = null;
+            heroAnimator = null;
         }
 
         bool hasModel = hero.previewModel != null;
@@ -549,6 +566,40 @@ public class NetworkPlayer : NetworkBehaviour
         }
 
         heroBody = holder.transform;
+        lastFloor = heroBody.position;
+        walkSpeed = 0f;
+        StartAnimating(hero, copy);
+    }
+
+    /// <summary>Starts the hero's idle and walk clips when it has them and the model has a skeleton.</summary>
+    private void StartAnimating(HeroDefinitionSO hero, GameObject copy)
+    {
+        if (hero.idleClip == null || hero.walkClip == null)
+        {
+            return;
+        }
+
+        // The clips bind bones by their path (Seven_Rig/Hips/…), so the node that holds Hips gets
+        // the name they expect and the animator goes on the node above it.
+        Transform skeleton = null;
+
+        foreach (Transform node in copy.GetComponentsInChildren<Transform>(true))
+        {
+            if (node.name == "Hips")
+            {
+                skeleton = node.parent;
+                break;
+            }
+        }
+
+        if (skeleton == null || skeleton.parent == null)
+        {
+            return;
+        }
+
+        skeleton.name = hero.rigRootName;
+        heroAnimator = skeleton.parent.gameObject.AddComponent<RivalAnimator>();
+        heroAnimator.Setup(hero.idleClip, hero.walkClip, hero.walkClipSpeed);
     }
 
     /// <summary>Strips a copied prefab down to what it looks like: no scripts, nothing to hit.</summary>

@@ -33,6 +33,18 @@ public class HeroDefinitionSO : ScriptableObject
     [Tooltip("3D model shown on the hero-select pedestal.")]
     public GameObject previewModel;
 
+    [Tooltip("Looping idle clip played on the rival's model while this hero stands still (optional: models without a skeleton stay static).")]
+    public AnimationClip idleClip;
+
+    [Tooltip("Looping walk clip played on the rival's model while this hero moves (optional).")]
+    public AnimationClip walkClip;
+
+    [Tooltip("Name the clips give the node that holds the skeleton (Hips and its children). Unity names that node after the model file, so the rival's copy is renamed to this before the clips play.")]
+    public string rigRootName = "Seven_Rig";
+
+    [Tooltip("How fast the walk clip travels in metres per second at the model's original scale; the rival's walk is slowed or sped up to match their real speed.")]
+    public float walkClipSpeed = 1.7f;
+
     [Tooltip("Story lines shown together (one per line) on a black screen after confirming this hero, while entryClip plays.")]
     [TextArea]
     public string[] introLines;
