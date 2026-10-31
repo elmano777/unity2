@@ -21,6 +21,9 @@ public class Tower : Structure
     [SerializeField] private float attackRange = 14f;
     [SerializeField] private float attackInterval = 1.2f;
 
+    [Tooltip("Seconds the tower spends pointing at a new target before it fires, so the staff is already aimed when the beam leaves.")]
+    [SerializeField] private float windUp = 0.35f;
+
     [Tooltip("Layers the tower scans for targets.")]
     [SerializeField] private LayerMask targetMask = ~0;
 
@@ -34,9 +37,20 @@ public class Tower : Structure
     [SerializeField] private LineRenderer beam;
     [SerializeField] private float beamDuration = 0.12f;
 
+    [Tooltip("Where the beam leaves from, e.g. the tip of the staff. The muzzle stays put as the centre of the range check.")]
+    [SerializeField] private Transform beamOrigin;
+
+    [Tooltip("Beam colour for the Amber tower (the host's side).")]
+    [SerializeField] private Color amberBeam = new Color(1f, 0.6f, 0.18f, 1f);
+
+    [Tooltip("Beam colour for the Sapphire tower.")]
+    [SerializeField] private Color sapphireBeam = new Color(0.3f, 0.72f, 1f, 1f);
+
     private readonly Collider[] overlapBuffer = new Collider[32];
     private float nextAttackTime;
     private float beamHideTime;
+    private float aimStartTime;
+    private float aimExpireTime;
     private bool disabled;
 
     /// <summary>Damage this tower deals per shot, after tier scaling.</summary>
@@ -44,6 +58,26 @@ public class Tower : Structure
 
     /// <summary>Radius the tower can shoot within.</summary>
     public float AttackRange => attackRange;
+
+    /// <summary>True while the tower has something to point at, before and between shots.</summary>
+    public bool HasAimPoint { get; private set; }
+
+    /// <summary>World point the tower is pointing at while <see cref="HasAimPoint"/> is true.</summary>
+    public Vector3 AimPoint { get; private set; }
+
+    /// <summary>Raised when a shot is shown (on both screens), with the point it hit.</summary>
+    public event System.Action<Vector3> Shot;
+
+    /// <summary>Raised once when the tower falls.</summary>
+    public event System.Action Destroyed;
+
+    /// <summary>The rival's copy points where the host says; the aim lapses if the host stops sending it.</summary>
+    public void SetAim(bool has, Vector3 point)
+    {
+        HasAimPoint = has && !disabled;
+        AimPoint = point;
+        aimExpireTime = Time.time + 0.6f;
+    }
 
     protected override void Awake()
     {
@@ -67,15 +101,40 @@ public class Tower : Structure
             beam.enabled = false;
         }
 
-        // The rival's copy only draws the tower; the host aims and fires for both screens.
-        if (disabled || !IsStanding || Health.IsReplica || Time.time < nextAttackTime)
+        if (disabled || !IsStanding)
         {
+            HasAimPoint = false;
+            return;
+        }
+
+        // The rival's copy only draws the tower; the host aims and fires for both screens.
+        if (Health.IsReplica)
+        {
+            if (HasAimPoint && Time.time > aimExpireTime)
+            {
+                HasAimPoint = false;
+            }
+
             return;
         }
 
         IDamageable target = FindTarget(out Vector3 targetPoint);
 
         if (target == null)
+        {
+            HasAimPoint = false;
+            return;
+        }
+
+        if (!HasAimPoint)
+        {
+            aimStartTime = Time.time;
+        }
+
+        HasAimPoint = true;
+        AimPoint = targetPoint;
+
+        if (Time.time < nextAttackTime || Time.time - aimStartTime < windUp)
         {
             return;
         }
@@ -87,6 +146,8 @@ public class Tower : Structure
     protected override void OnDestroyed(DamageInfo info)
     {
         disabled = true;
+        HasAimPoint = false;
+        Destroyed?.Invoke();
 
         if (beam != null)
         {
@@ -194,12 +255,17 @@ public class Tower : Structure
 
         if (beam != null)
         {
+            Color tint = Faction == Faction.Player ? amberBeam : sapphireBeam;
+            beam.startColor = tint;
+            beam.endColor = new Color(tint.r, tint.g, tint.b, 0.55f);
             beam.positionCount = 2;
-            beam.SetPosition(0, muzzle.position);
+            beam.SetPosition(0, (beamOrigin != null ? beamOrigin : muzzle).position);
             beam.SetPosition(1, targetPoint);
             beam.enabled = true;
             beamHideTime = Time.time + beamDuration;
         }
+
+        Shot?.Invoke(targetPoint);
     }
 
     private void OnDrawGizmosSelected()

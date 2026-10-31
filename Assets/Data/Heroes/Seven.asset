@@ -25,6 +25,7 @@ MonoBehaviour:
   idleClip: {fileID: 860415386706527242, guid: 946bd5781e9317841be86c75e34bcde7, type: 3}
   walkClip: {fileID: 8962348838226199266, guid: 946bd5781e9317841be86c75e34bcde7,
     type: 3}
+  rigRootName: Seven_Rig
   walkClipSpeed: 1.7
   introLines:
   - You escaped Lost Whisper.
