@@ -39,7 +39,9 @@ public static class MatchNet
                     return true;
 
                 case DuelMatchmaker.Status.Connected:
-                    return NetworkManager.Singleton != null && NetworkManager.Singleton.IsServer;
+                    // Both players hear the welcome first; the world starts when the match does.
+                    MatchStartSync sync = MatchStartSync.Instance;
+                    return NetworkManager.Singleton != null && NetworkManager.Singleton.IsServer && (sync == null || sync.Started);
 
                 default:
                     return false;

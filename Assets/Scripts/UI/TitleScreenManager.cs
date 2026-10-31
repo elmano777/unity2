@@ -27,6 +27,9 @@ public class TitleScreenManager : MonoBehaviour
     [Tooltip("Shown on the mission button until the practice has been completed.")]
     [SerializeField] private TMP_Text missionRecommendedLabel;
 
+    [Tooltip("The two choices of an online match: create a room, or pick one. Optional: without it \"Partida online\" goes straight on.")]
+    [SerializeField] private RoomBoard roomBoard;
+
     [Header("Transition")]
     [SerializeField] private ScreenFader fader;
     [Tooltip("Ignore input for this long after the scene starts (avoids instant skip).")]
@@ -63,15 +66,40 @@ public class TitleScreenManager : MonoBehaviour
              keyboard.enterKey.wasPressedThisFrame ||
              keyboard.numpadEnterKey.wasPressedThisFrame))
         {
-            PlayOnline();
+            CreateRoom();
         }
     }
 
-    /// <summary>"Partida online": straight to hero select (and later the room).</summary>
+    /// <summary>"Partida online": offers to create a room or to pick one (Space on the keyboard just creates one).</summary>
     public void PlayOnline()
     {
+        if (roomBoard != null)
+        {
+            roomBoard.Open();
+        }
+        else
+        {
+            CreateRoom();
+        }
+    }
+
+    /// <summary>The player opens a room of their own: on to the hero select, then the Lane creates the room.</summary>
+    public void CreateRoom()
+    {
+        if (!CanBegin) return;
+        OnlineIntent.Create();
         Begin(false);
     }
+
+    /// <summary>The player picked a room from the list (see <see cref="OnlineIntent.Join"/>): on to the hero select.</summary>
+    public void JoinRoom(string lobbyId, string roomName)
+    {
+        if (!CanBegin) return;
+        OnlineIntent.Join(lobbyId, roomName);
+        Begin(false);
+    }
+
+    private bool CanBegin => !isLoading && Time.unscaledTime - startTime >= inputDelay;
 
     /// <summary>"Mi misión": guided practice (not built yet, so it goes to hero select and is flagged).</summary>
     public void StartMission()
@@ -83,6 +111,7 @@ public class TitleScreenManager : MonoBehaviour
     {
         if (isLoading || Time.unscaledTime - startTime < inputDelay) return;
         isLoading = true;
+        if (mission) OnlineIntent.Clear();
         PlayerPrefs.SetInt(MissionRequestedKey, mission ? 1 : 0);
         PlayerPrefs.Save();
         StartCoroutine(FadeAndLoad());

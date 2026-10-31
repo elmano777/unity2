@@ -5,7 +5,6 @@ using System.Threading.Tasks;
 using Unity.Netcode;
 using Unity.Netcode.Transports.UTP;
 using Unity.Services.Authentication;
-using Unity.Services.Core;
 using Unity.Services.Lobbies;
 using Unity.Services.Lobbies.Models;
 using Unity.Services.Relay;
@@ -13,16 +12,16 @@ using Unity.Services.Relay.Models;
 using UnityEngine;
 
 /// <summary>
-/// Puts the two players of "el ritual" in the same session (RF-08): joins an open lobby if there
-/// is one, otherwise creates a Relay allocation plus a 2-player lobby and waits as host.
+/// Puts the two players of "el ritual" in the same session (RF-08). What the player chose in the garage
+/// (<see cref="OnlineIntent"/>) decides how: create a room (a Relay allocation plus a 2-player lobby, and
+/// wait as host), or join the room they picked from the list. A Lane started without a menu choice
+/// (Play in the editor, a test client) joins an open room if there is one and otherwise creates one.
 /// </summary>
 /// <remarks>
-/// Two fixes for players who both sat on "Esperando al rival": rooms are tagged with a hash of the
-/// network setup so only matching builds meet (Netcode silently refuses a different build), and a
-/// waiting host keeps looking: if two players searched at the same moment and each made a room,
-/// the newer room's host closes it and joins the older one. The room code is shown while waiting
-/// so both players can check they are in the same room. A room whose host never answers (it quit
-/// without closing it) is given up after <see cref="joinTimeout"/> and skipped from then on.
+/// Rooms are tagged with a hash of the network setup so a player can't enter a room of a different build:
+/// Netcode would silently refuse them. The room's name ("Sala 4821") is shown while waiting so both
+/// players can check they are in the same room. A room whose host never answers (it quit without closing
+/// it) is given up after <see cref="joinTimeout"/>.
 /// </remarks>
 /// <remarks>
 /// Same flow as Meta's Auto Matchmaking building block from the course lab (Lobby + Relay + NGO),
@@ -39,29 +38,21 @@ public class DuelMatchmaker : MonoBehaviour
     private const string JoinCodeKey = "joinCode";
     private const string BuildKey = "build";
 
-    [Tooltip("Seconds between checks, while waiting as host, for an older open room to merge into.")]
-    [SerializeField] private float mergeCheckInterval = 4f;
-
-    [Tooltip("Name given to the lobby this player creates when no open one is found.")]
-    [SerializeField] private string lobbyName = "ritual";
-
     [Tooltip("Connection attempts before giving up on joining or creating a room.")]
     [SerializeField] private int maxRetries = 3;
 
-    [Tooltip("Random wait, in seconds, between failed attempts so two players don't collide again.")]
+    [Tooltip("Random wait, in seconds, between failed attempts.")]
     [SerializeField] private Vector2 retryInterval = new Vector2(1f, 3f);
 
     [Tooltip("Skip matchmaking when the player came from \"Mi misión\" (guided practice is offline).")]
     [SerializeField] private bool offlineForMission = true;
 
+    [Tooltip("Seconds to wait for a room's host to answer before treating the room as abandoned.")]
+    [SerializeField] private float joinTimeout = 12f;
+
     private Lobby lobby;
     private NetworkManager network;
     private string buildTag;
-    private bool merging;
-    private readonly HashSet<string> deadRooms = new HashSet<string>();
-
-    [Tooltip("Seconds to wait for a room's host to answer before treating the room as abandoned.")]
-    [SerializeField] private float joinTimeout = 12f;
 
     /// <summary>The matchmaker of the open Lane, so the world can wait for the rival (see <see cref="MatchNet"/>).</summary>
     public static DuelMatchmaker Instance { get; private set; }
@@ -70,6 +61,9 @@ public class DuelMatchmaker : MonoBehaviour
 
     /// <summary>Human-readable detail for the current status (e.g. the failure reason).</summary>
     public string Detail { get; private set; } = "";
+
+    /// <summary>Name of the room this player is in ("Sala 4821"), empty until there is one.</summary>
+    public string RoomName => lobby != null ? lobby.Name : "";
 
     public event Action<Status, string> StatusChanged;
 
@@ -101,8 +95,6 @@ public class DuelMatchmaker : MonoBehaviour
             GameSession.Instance.IsPracticeRun = mission;
         }
 
-        // Pressing Play straight in the Lane scene has no menu choice behind it: go online so the
-        // duel can be tested without walking through the menus every time.
         if (offlineForMission && mission && cameFromMenu)
         {
             SetStatus(Status.Offline, "Mi misión: práctica sin conexión");
@@ -115,44 +107,84 @@ public class DuelMatchmaker : MonoBehaviour
         try
         {
             SetStatus(Status.SigningIn);
-            await UnityServices.InitializeAsync();
-#if UNITY_EDITOR
-            // The editor reuses one anonymous ID, which would make an editor and a second editor
-            // (or a build signed in earlier) look like the same player to Lobby.
-            // Only before the first sign-in: coming back from the garage the player is still signed in.
-            if (!AuthenticationService.Instance.IsSignedIn) AuthenticationService.Instance.ClearSessionToken();
-#endif
-            if (!AuthenticationService.Instance.IsSignedIn)
-            {
-                await AuthenticationService.Instance.SignInAnonymouslyAsync();
-            }
+            await RoomBrowser.SignIn();
 
-            // Builds whose networked prefabs or settings differ can't play together: only meet the same build.
+            // Builds whose networked prefabs or settings differ can't play together.
             // Not cached (false): a hash taken before Netcode registers the prefabs, if kept, is what
             // the joining player would later send, and the host (which has the prefabs) refuses it.
             buildTag = network.NetworkConfig.GetConfig(false).ToString("X");
 
-            SetStatus(Status.Searching);
-            lobby = await JoinOrCreate();
+            switch (OnlineIntent.Mode)
+            {
+                case OnlineIntent.OnlineMode.Create:
+                    SetStatus(Status.Searching, "Creando la sala...");
+                    lobby = await Retry(Create);
+                    break;
+
+                case OnlineIntent.OnlineMode.Join:
+                    SetStatus(Status.Joining, OnlineIntent.JoinRoomName ?? "");
+                    lobby = await JoinChosen(OnlineIntent.JoinLobbyId);
+                    break;
+
+                default:
+                    SetStatus(Status.Searching);
+                    lobby = await JoinOrCreate();
+                    break;
+            }
 
             if (IsLobbyHost)
             {
                 StartCoroutine(Heartbeat(lobby.Id, 15f));
-                MergeIntoOlderRoom();
             }
         }
         catch (Exception e)
         {
             Debug.LogWarning($"[DuelMatchmaker] {e}");
-            SetStatus(Status.Failed, e.Message);
+            SetStatus(Status.Failed, FriendlyReason(e));
         }
     }
 
+    private static string FriendlyReason(Exception e)
+    {
+        if (e is LobbyServiceException lobbyError)
+        {
+            switch (lobbyError.Reason)
+            {
+                case LobbyExceptionReason.LobbyNotFound:
+                case LobbyExceptionReason.NoOpenLobbies:
+                    return "Esa sala ya no existe";
+
+                case LobbyExceptionReason.LobbyFull:
+                    return "La sala ya está llena";
+            }
+        }
+
+        return e.Message;
+    }
+
+    /// <summary>Joins the room the player picked from the list.</summary>
+    private async Task<Lobby> JoinChosen(string lobbyId)
+    {
+        Lobby joined = await LobbyService.Instance.JoinLobbyByIdAsync(lobbyId);
+
+        // A room of another build would be refused by Netcode without a word: say so here instead.
+        if (joined.Data != null && joined.Data.TryGetValue(BuildKey, out DataObject data) && data.Value != buildTag)
+        {
+            try { await LobbyService.Instance.RemovePlayerAsync(joined.Id, AuthenticationService.Instance.PlayerId); }
+            catch (Exception) { /* the room is closed to us anyway */ }
+
+            throw new Exception("Esa sala es de otra versión del juego: ¿tienen el mismo APK?");
+        }
+
+        return await ConnectAsClient(joined);
+    }
+
+    /// <summary>Direct Play in the Lane: the newest open room of this build, or a room of our own.</summary>
     private async Task<Lobby> JoinOrCreate()
     {
         try
         {
-            Lobby joined = await Retry(Join);
+            Lobby joined = await Retry(JoinNewest);
             if (joined != null) return joined;
         }
         catch (Exception e)
@@ -187,42 +219,31 @@ public class DuelMatchmaker : MonoBehaviour
             }
         }
 
-        throw last ?? new Exception("Matchmaking failed");
+        throw last ?? new Exception("No se pudo conectar");
     }
 
-    /// <summary>Joins the newest open room of this build that hasn't failed us; null when there is none.</summary>
-    private async Task<Lobby> Join()
-    {
-        Lobby target = null;
-        foreach (Lobby open in await OpenRooms(false))
-        {
-            if (!deadRooms.Contains(open.Id)) { target = open; break; }
-        }
-
-        if (target == null) return null;
-
-        Lobby joined = await LobbyService.Instance.JoinLobbyByIdAsync(target.Id);
-        return await ConnectAsClient(joined);
-    }
-
-    private async Task<List<Lobby>> OpenRooms(bool oldestFirst)
+    private async Task<Lobby> JoinNewest()
     {
         QueryResponse open = await LobbyService.Instance.QueryLobbiesAsync(new QueryLobbiesOptions
         {
-            Count = 10,
+            Count = 5,
             Filters = new List<QueryFilter>
             {
                 new QueryFilter(QueryFilter.FieldOptions.AvailableSlots, "0", QueryFilter.OpOptions.GT),
                 new QueryFilter(QueryFilter.FieldOptions.S1, buildTag, QueryFilter.OpOptions.EQ)
             },
-            Order = new List<QueryOrder> { new QueryOrder(oldestFirst, QueryOrder.FieldOptions.Created) }
+            Order = new List<QueryOrder> { new QueryOrder(false, QueryOrder.FieldOptions.Created) }
         });
-        return open.Results;
+
+        if (open.Results.Count == 0) return null;
+
+        Lobby joined = await LobbyService.Instance.JoinLobbyByIdAsync(open.Results[0].Id);
+        return await ConnectAsClient(joined);
     }
 
     private async Task<Lobby> ConnectAsClient(Lobby found)
     {
-        SetStatus(Status.Joining, $"Sala {found.LobbyCode}");
+        SetStatus(Status.Joining, found.Name);
 
         JoinAllocation allocation = await RelayService.Instance.JoinAllocationAsync(found.Data[JoinCodeKey].Value);
         GetComponent<UnityTransport>().SetClientRelayData(allocation.RelayServer.IpV4, (ushort)allocation.RelayServer.Port,
@@ -236,45 +257,16 @@ public class DuelMatchmaker : MonoBehaviour
 
     /// <summary>
     /// A room whose host quit without closing it (app killed, Play stopped) stays listed for about
-    /// 30 s, and joining it never connects. If the host hasn't answered in time, mark the room as
-    /// dead, leave it and search again (joining another room or creating one).
+    /// 30 s, and joining it never connects. If the host hasn't answered in time, give up with a message.
     /// </summary>
     private async void GiveUpIfNoHost(string roomId)
     {
         await Task.Delay(TimeSpan.FromSeconds(joinTimeout));
         if (this == null || Current != Status.Joining || lobby == null || lobby.Id != roomId) return;
 
-        Debug.LogWarning($"[DuelMatchmaker] No answer from the host of {lobby.LobbyCode}; looking for another room.");
-        AbandonJoin(roomId);
-    }
-
-    /// <summary>Leaves a room we could not enter, never tries it again, and searches afresh.</summary>
-    private async void AbandonJoin(string roomId)
-    {
-        if (deadRooms.Contains(roomId)) return;
-        deadRooms.Add(roomId);
-        merging = true;
-        lobby = null;
+        Debug.LogWarning($"[DuelMatchmaker] No answer from the host of {lobby.Name}.");
         network.Shutdown();
-        while (network.ShutdownInProgress) await Task.Delay(50);
-        merging = false;
-        try { await LobbyService.Instance.RemovePlayerAsync(roomId, AuthenticationService.Instance.PlayerId); }
-        catch (Exception) { /* the room is gone anyway */ }
-
-        try
-        {
-            SetStatus(Status.Searching);
-            lobby = await JoinOrCreate();
-            if (IsLobbyHost)
-            {
-                StartCoroutine(Heartbeat(lobby.Id, 15f));
-                MergeIntoOlderRoom();
-            }
-        }
-        catch (Exception e)
-        {
-            SetStatus(Status.Failed, e.Message);
-        }
+        SetStatus(Status.Failed, "La sala no respondió: puede que el anfitrión ya se haya ido");
     }
 
     private async Task<Lobby> Create()
@@ -283,13 +275,18 @@ public class DuelMatchmaker : MonoBehaviour
         Allocation allocation = await RelayService.Instance.CreateAllocationAsync(MaxPlayers - 1);
         string joinCode = await RelayService.Instance.GetJoinCodeAsync(allocation.AllocationId);
 
-        Lobby created = await LobbyService.Instance.CreateLobbyAsync(lobbyName, MaxPlayers, new CreateLobbyOptions
+        string heroName = GameSession.Instance != null && GameSession.Instance.SelectedHero != null
+            ? GameSession.Instance.SelectedHero.heroName
+            : "";
+
+        Lobby created = await LobbyService.Instance.CreateLobbyAsync($"Sala {UnityEngine.Random.Range(1000, 10000)}", MaxPlayers, new CreateLobbyOptions
         {
             IsPrivate = false,
             Data = new Dictionary<string, DataObject>
             {
                 { JoinCodeKey, new DataObject(DataObject.VisibilityOptions.Public, joinCode) },
-                { BuildKey, new DataObject(DataObject.VisibilityOptions.Public, buildTag, DataObject.IndexOptions.S1) }
+                { BuildKey, new DataObject(DataObject.VisibilityOptions.Public, buildTag, DataObject.IndexOptions.S1) },
+                { RoomBrowser.HeroKey, new DataObject(DataObject.VisibilityOptions.Public, heroName) },
             }
         });
 
@@ -298,7 +295,7 @@ public class DuelMatchmaker : MonoBehaviour
 
         network.StartHost();
         LogConfig("host");
-        SetStatus(Status.WaitingForRival, $"Sala {created.LobbyCode}");
+        SetStatus(Status.WaitingForRival, created.Name);
         return created;
     }
 
@@ -307,84 +304,6 @@ public class DuelMatchmaker : MonoBehaviour
     {
         Debug.Log($"[DuelMatchmaker] {role} config {network.NetworkConfig.GetConfig(false):X} (sent {network.NetworkConfig.GetConfig():X}), " +
                   $"{network.NetworkConfig.Prefabs.NetworkPrefabOverrideLinks.Count} prefabs, room tag {buildTag}");
-    }
-
-    /// <summary>
-    /// While nobody has joined, looks for another open room of this build that is older than ours
-    /// (or as old with a smaller id, so exactly one of two simultaneous hosts gives way). If there
-    /// is one, closes ours and joins it.
-    /// </summary>
-    private async void MergeIntoOlderRoom()
-    {
-        while (this != null && lobby != null && IsLobbyHost && Current == Status.WaitingForRival)
-        {
-            await Task.Delay(TimeSpan.FromSeconds(mergeCheckInterval));
-            if (this == null || lobby == null || Current != Status.WaitingForRival) return;
-
-            Lobby older;
-            try
-            {
-                older = await FindOlderRoom();
-            }
-            catch (Exception e)
-            {
-                Debug.Log($"[DuelMatchmaker] Room check failed, trying again: {e.Message}");
-                continue;
-            }
-
-            if (older == null || this == null || Current != Status.WaitingForRival) continue;
-
-            Debug.Log($"[DuelMatchmaker] Room {older.LobbyCode} is older than ours ({lobby.LobbyCode}): joining it.");
-            merging = true;
-            string ours = lobby.Id;
-            lobby = null; // also stops the heartbeat
-
-            try
-            {
-                network.Shutdown();
-                while (network.ShutdownInProgress) await Task.Delay(50);
-                try { await LobbyService.Instance.DeleteLobbyAsync(ours); }
-                catch (Exception) { /* unattended rooms expire on their own */ }
-                merging = false;
-
-                Lobby joined = await LobbyService.Instance.JoinLobbyByIdAsync(older.Id);
-                lobby = await ConnectAsClient(joined);
-                return;
-            }
-            catch (Exception e)
-            {
-                // The other room filled up or closed meanwhile: search again from scratch.
-                merging = false;
-                Debug.LogWarning($"[DuelMatchmaker] Could not merge rooms: {e.Message}");
-                try
-                {
-                    SetStatus(Status.Searching);
-                    lobby = await JoinOrCreate();
-                    if (IsLobbyHost) StartCoroutine(Heartbeat(lobby.Id, 15f));
-                    else return; // joined another room; GiveUpIfNoHost watches that one
-                }
-                catch (Exception again)
-                {
-                    SetStatus(Status.Failed, again.Message);
-                    return;
-                }
-            }
-        }
-    }
-
-    private async Task<Lobby> FindOlderRoom()
-    {
-        foreach (Lobby other in await OpenRooms(true))
-        {
-            if (lobby == null) return null;
-            if (other.Id == lobby.Id || deadRooms.Contains(other.Id)) continue;
-
-            bool older = other.Created < lobby.Created ||
-                         (other.Created == lobby.Created && string.CompareOrdinal(other.Id, lobby.Id) < 0);
-            if (older) return other;
-        }
-
-        return null;
     }
 
     private IEnumerator Heartbeat(string lobbyId, float seconds)
@@ -418,9 +337,6 @@ public class DuelMatchmaker : MonoBehaviour
 
     private void OnClientDisconnected(ulong clientId)
     {
-        // Our own host shutting down to move into the other room is not the rival leaving.
-        if (merging) return;
-
         if (network.IsHost && clientId != network.LocalClientId)
         {
             if (Current == Status.WaitingForRival)
@@ -428,7 +344,7 @@ public class DuelMatchmaker : MonoBehaviour
                 // Someone joined the room but Netcode never let them in (different build, or their
                 // connection dropped while entering): keep waiting and free their lobby seat.
                 Debug.LogWarning("[DuelMatchmaker] A player reached the room but could not enter.");
-                SetStatus(Status.WaitingForRival, $"Sala {lobby?.LobbyCode}\nUn jugador no pudo entrar: ¿tienen el mismo APK?");
+                SetStatus(Status.WaitingForRival, $"{lobby?.Name}\nUn jugador no pudo entrar: ¿tienen el mismo APK?");
                 FreeLobbySeats();
             }
             else
@@ -438,14 +354,13 @@ public class DuelMatchmaker : MonoBehaviour
         }
         else if (!network.IsHost)
         {
-            if (Current == Status.Joining && lobby != null)
+            if (Current == Status.Joining)
             {
-                // Never got in: dead room or refused by the host. Try another room instead of stopping here.
-                string reason = network.DisconnectReason;
-                Debug.LogWarning($"[DuelMatchmaker] Could not enter room {lobby.LobbyCode}: {reason}");
-                AbandonJoin(lobby.Id);
+                // Never got in: dead room or refused by the host.
+                Debug.LogWarning($"[DuelMatchmaker] Could not enter room {lobby?.Name}: {network.DisconnectReason}");
+                SetStatus(Status.Failed, "No se pudo entrar a la sala: ¿tienen el mismo APK?");
             }
-            else
+            else if (Current != Status.Failed)
             {
                 SetStatus(Status.RivalLeft, "Se perdió la conexión con el anfitrión");
             }

@@ -208,6 +208,45 @@ public class IntroSequencePlayer : MonoBehaviour
     }
 
     /// <summary>
+    /// Shows one message on the black screen until <paramref name="until"/> says so, then fades it out.
+    /// Used after the welcome, while the other player is still listening to theirs.
+    /// </summary>
+    public IEnumerator Hold(string message, System.Func<bool> until)
+    {
+        if (storyText == null) yield break;
+
+        Camera cam = isolateCamera ? GetComponentInParent<Camera>() : null;
+        int previousMask = cam != null ? cam.cullingMask : 0;
+
+        storyText.text = message;
+        storyGroup.alpha = 0f;
+        if (hintGroup != null) hintGroup.alpha = 0f;
+        group.alpha = 1f;
+        canvas.enabled = true;
+        if (cam != null) cam.cullingMask = introCullingMask;
+
+        try
+        {
+            CurrentPhase = Phase.Speaking;
+            yield return FadeGroup(storyGroup, 1f, textFadeInDuration);
+
+            while (until != null && !until())
+            {
+                yield return null;
+            }
+
+            CurrentPhase = Phase.Finishing;
+            yield return FadeGroup(group, 0f, textFadeOutDuration);
+        }
+        finally
+        {
+            if (cam != null) cam.cullingMask = previousMask;
+            CurrentPhase = Phase.Idle;
+            HideImmediate();
+        }
+    }
+
+    /// <summary>
     /// Waits until the voice line has played to the end. A source paused mid-clip (isPlaying false but
     /// playback position inside the clip) keeps waiting. If the clip never starts playing (no audio
     /// device, audio disabled), falls back to waiting the clip length in real time.
