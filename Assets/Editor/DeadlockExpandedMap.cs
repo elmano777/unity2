@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using TMPro;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -30,6 +31,9 @@ using Random = System.Random;
 /// them fight yet: the tower sequence is RF-12, deliverable 4.</para>
 /// <para>Buildings are merged into one mesh per area and material (a few dozen draw calls in total)
 /// to keep the Quest at 72 FPS (RNF-01), with UVs in world metres so textures line up across boxes.</para>
+/// <para>Neon signs are a dark board, a neon tube outline, glowing TextMeshPro text and an additive
+/// halo on the wall behind (<c>Deadlock/Glow</c>): the Lane has no bloom, which costs too much on the
+/// Quest, so the halo stands in for it. District names at their entrances double as wayfinding (RNF-05).</para>
 /// </remarks>
 public static class DeadlockExpandedMap
 {
@@ -140,11 +144,22 @@ public static class DeadlockExpandedMap
     private static Material paving, sandstone, sandstoneDark, brick, brickDark, window, windowLit, lamp;
     private static Material asphalt, concrete, wood, metal, lacquer, jade, bronze, fence;
     private static Material neonBlue, neonPink, neonCyan, neonYellow, neonGreen, neonRed, neonPurple, white;
-    private static Material teleportRing;
+    private static Material teleportRing, signBoard;
     private static readonly Dictionary<Faction, Material> teamStone = new Dictionary<Faction, Material>();
     private static readonly Dictionary<Faction, Material> teamGlow = new Dictionary<Faction, Material>();
     private static readonly Dictionary<Faction, Material> teamFloor = new Dictionary<Faction, Material>();
     private static int groundLayer;
+
+    /// <summary>One neon colour: the tube (unlit), the halo it throws on the wall, and the glowing text.</summary>
+    private sealed class Neon
+    {
+        public Color Color;
+        public Material Tube, Halo, Text;
+    }
+
+    private static Neon blue, pink, cyan, yellow, green, red, purple;
+    private static readonly Dictionary<Faction, Neon> teamNeon = new Dictionary<Faction, Neon>();
+    private static Transform signs;
 
     [MenuItem("Deadlock/Setup/26 Expanded Map (mini Broadway)")]
     public static void Run()
@@ -172,6 +187,8 @@ public static class DeadlockExpandedMap
         AssetDatabase.CreateFolder("Assets/Art/Meshes", "Map");
 
         Transform root = new GameObject("Map").transform;
+        signs = new GameObject("Signs").transform;
+        signs.SetParent(root, false);
         var random = new Random(23);
 
         foreach (int half in new[] { 1, -1 })
@@ -268,7 +285,60 @@ public static class DeadlockExpandedMap
             unshadowed.Add(m);
         }
 
+        signBoard = Plain("Map_SignBoard", new Color(0.04f, 0.04f, 0.05f), 0.5f, Color.black);
+        blue = NeonSet("Blue", neonBlue);
+        pink = NeonSet("Pink", neonPink);
+        cyan = NeonSet("Cyan", neonCyan);
+        yellow = NeonSet("Yellow", neonYellow);
+        green = NeonSet("Green", neonGreen);
+        red = NeonSet("Red", neonRed);
+        purple = NeonSet("Purple", neonPurple);
+        teamNeon[Faction.Player] = NeonSet("Amber", teamGlow[Faction.Player]);
+        teamNeon[Faction.Enemy] = NeonSet("Sapphire", teamGlow[Faction.Enemy]);
+
         return true;
+    }
+
+    private static Neon NeonSet(string name, Material tube)
+    {
+        Color color = tube.GetColor("_BaseColor");
+
+        // A soft additive pool of the sign's colour, brightest behind the board and fading out.
+        Material halo = LoadOrCreate($"Map_Halo_{name}", "Deadlock/Glow");
+        halo.SetColor("_Color", new Color(color.r, color.g, color.b, 0.5f));
+        halo.SetFloat("_Radial", 1f);
+        EditorUtility.SetDirty(halo);
+        unshadowed.Add(halo);
+
+        return new Neon { Color = color, Tube = tube, Halo = halo, Text = TextMaterial(name, color) };
+    }
+
+    /// <summary>The default TMP font with its glow turned on in the sign's colour, like the menus of step 12.</summary>
+    private static Material TextMaterial(string name, Color color)
+    {
+        TMP_FontAsset font = TMP_Settings.defaultFontAsset;
+        string path = $"{MaterialDir}/Map_Text_{name}.mat";
+        Material m = AssetDatabase.LoadAssetAtPath<Material>(path);
+
+        if (m == null)
+        {
+            m = new Material(font.material) { name = $"Map_Text_{name}" };
+            AssetDatabase.CreateAsset(m, path);
+        }
+
+        // The mobile SDF shader the font ships with has no glow; the full one does.
+        m.shader = Shader.Find("TextMeshPro/Distance Field");
+        m.SetTexture(ShaderUtilities.ID_MainTex, font.atlasTexture);
+        m.EnableKeyword(ShaderUtilities.Keyword_Glow);
+        m.SetColor(ShaderUtilities.ID_GlowColor, new Color(color.r, color.g, color.b, 0.75f));
+        m.SetFloat(ShaderUtilities.ID_GlowOffset, 0f);
+        m.SetFloat(ShaderUtilities.ID_GlowInner, 0.1f);
+        m.SetFloat(ShaderUtilities.ID_GlowOuter, 0.6f);
+        m.SetFloat(ShaderUtilities.ID_GlowPower, 0.75f);
+        m.SetFloat(ShaderUtilities.ID_FaceDilate, 0.15f);
+        ShaderUtilities.UpdateShaderRatios(m);
+        EditorUtility.SetDirty(m);
+        return m;
     }
 
     private static Material Existing(string name) => AssetDatabase.LoadAssetAtPath<Material>($"Assets/Art/Materials/{name}.mat");
@@ -388,6 +458,82 @@ public static class DeadlockExpandedMap
 
         list.Add(new Bounds(center, size));
     }
+
+    // ------------------------------------------------------------------ signs
+
+    /// <summary>
+    /// A neon sign on a wall: dark board, tube outline, glowing text and a halo on the wall behind.
+    /// <paramref name="center"/> is the board's centre and <paramref name="normal"/> the axis it faces, in world space.
+    /// </summary>
+    private static void Sign(string chunk, Vector3 center, Vector3 normal, float width, float height, Neon neon, string text, bool halo = true)
+    {
+        Board(chunk, center, normal, width, height, neon, false);
+
+        if (halo)
+        {
+            // Just behind the board's face but in front of the wall it hangs on.
+            Quad(chunk, neon.Halo, center - normal * 0.04f, normal, width * 1.6f + 1f, height * 1.9f + 1f);
+        }
+
+        Text(center + normal * 0.1f, normal, width * 0.86f, height * 0.78f, neon, text);
+    }
+
+    /// <summary>A blade sign standing out from a facade, lettered on both faces so it reads up and down the street.</summary>
+    private static void BladeSign(string chunk, Vector3 center, Vector3 normal, float width, float height, Neon neon, string text)
+    {
+        Board(chunk, center, normal, width, height, neon, true);
+        Text(center + normal * 0.1f, normal, width * 0.8f, height * 0.88f, neon, text);
+        Text(center - normal * 0.1f, -normal, width * 0.8f, height * 0.88f, neon, text);
+    }
+
+    /// <summary>The dark board with a neon tube running round its edge, on one face or both.</summary>
+    private static void Board(string chunk, Vector3 center, Vector3 normal, float width, float height, Neon neon, bool bothFaces)
+    {
+        const float tube = 0.07f;
+        Vector3 along = Abs(Vector3.Cross(Vector3.up, normal));
+        Vector3 depth = Abs(normal);
+        Box(chunk, signBoard, center, along * width + Vector3.up * height + depth * 0.1f, 0f, false);
+
+        foreach (int face in bothFaces ? new[] { 1, -1 } : new[] { 1 })
+        {
+            Vector3 front = center + normal * (face * 0.07f);
+            Vector3 thin = depth * 0.04f;
+            Vector3 horizontal = along * (width - 0.1f) + Vector3.up * tube + thin;
+            Vector3 vertical = along * tube + Vector3.up * (height - 0.1f) + thin;
+
+            Box(chunk, neon.Tube, front + Vector3.up * (height / 2f - tube), horizontal, 0f, false);
+            Box(chunk, neon.Tube, front - Vector3.up * (height / 2f - tube), horizontal, 0f, false);
+            Box(chunk, neon.Tube, front + along * (width / 2f - tube), vertical, 0f, false);
+            Box(chunk, neon.Tube, front - along * (width / 2f - tube), vertical, 0f, false);
+        }
+    }
+
+    /// <summary>Glowing TextMeshPro text sized to fit the board. Not batched: one renderer per sign face.</summary>
+    private static void Text(Vector3 position, Vector3 normal, float width, float height, Neon neon, string content)
+    {
+        var go = new GameObject($"Sign {content.Replace('\n', ' ')}");
+        go.transform.SetParent(signs, false);
+        // TMP text faces its local -Z, so the transform looks into the board.
+        go.transform.SetPositionAndRotation(position, Quaternion.LookRotation(-normal));
+
+        TextMeshPro text = go.AddComponent<TextMeshPro>();
+        text.text = content;
+        text.rectTransform.sizeDelta = new Vector2(width, height);
+        text.alignment = TextAlignmentOptions.Center;
+        text.enableWordWrapping = false;
+        text.enableAutoSizing = true;
+        text.fontSizeMin = 0.5f;
+        text.fontSizeMax = 40f;
+        text.fontStyle = FontStyles.Bold;
+        text.color = Color.Lerp(neon.Color, Color.white, 0.35f);
+        text.fontSharedMaterial = neon.Text;
+        go.GetComponent<MeshRenderer>().shadowCastingMode = ShadowCastingMode.Off;
+    }
+
+    /// <summary>One letter per line, for tall narrow blade signs.</summary>
+    private static string Stacked(string word) => string.Join("\n", word.ToCharArray());
+
+    private static Vector3 Abs(Vector3 v) => new Vector3(Mathf.Abs(v.x), Mathf.Abs(v.y), Mathf.Abs(v.z));
 
     // ------------------------------------------------------------------ buildings
 
@@ -536,12 +682,16 @@ public static class DeadlockExpandedMap
         Row(chunk, f, LaneHalfWidth, BlockOuterX, BaseFrontZ, CrossStreetStart, Faces.MinusX | Faces.PlusX, Faces.None, Faces.PlusZ, 10f, 16f, random);
         Row(chunk, f, LaneHalfWidth, BlockOuterX, CrossStreetEnd, PlazaEdgeZ, Faces.MinusX | Faces.PlusX, Faces.MinusZ, Faces.PlusZ, 12f, 20f, random);
 
-        // Vertical neon signs on the lane face near Times Square.
-        Material[] signs = { neonPink, neonCyan, neonYellow };
+        // Blade signs standing out from the lane facades near Times Square, readable down the street.
+        Neon[] colors = { pink, cyan, yellow };
+        string[] words = f.Half > 0
+            ? (f.Side > 0 ? new[] { "HOTEL", "JAZZ", "DINER" } : new[] { "BAR", "DELI", "PAWN" })
+            : (f.Side > 0 ? new[] { "CAFE", "OPEN", "MOTEL" } : new[] { "LIVE", "SOULS", "SHOP" });
+
         for (int i = 0; i < 3; i++)
         {
-            float z = -30f + i * 6f;
-            Box(chunk, f, signs[(i + (f.Half > 0 ? 0 : 1) + (f.Side > 0 ? 0 : 2)) % 3], new Vector3(LaneHalfWidth - 0.35f, 8f, z), new Vector3(0.3f, 6f, 1.2f), 0f, false);
+            Neon neon = colors[(i + (f.Half > 0 ? 0 : 1) + (f.Side > 0 ? 0 : 2)) % 3];
+            BladeSign(chunk, f.P(LaneHalfWidth - 0.7f, 7.5f, -30f + i * 6f), f.N(Vector3.forward), 1.4f, 5f, neon, Stacked(words[i]));
         }
     }
 
@@ -575,15 +725,25 @@ public static class DeadlockExpandedMap
 
             // Gate posts with the team's light, so each side reads at a glance from the plaza.
             Box(chunk, s, stone, new Vector3(LaneHalfWidth + 0.6f, 4f, BaseFrontZ), new Vector3(1.2f, 8f, 1.2f), SandstoneTile, true);
-            Lamp(chunk, s.P(LaneHalfWidth + 0.6f, 8.4f, BaseFrontZ), 0.8f, teamGlow[f.Faction]);
+            Lamp(chunk, s.P(LaneHalfWidth + 0.6f, 9.6f, BaseFrontZ), 0.8f, teamGlow[f.Faction]);
         }
+
+        // An arch over the gate with the base's name from the real map, on both faces: the rival
+        // reads it coming up the lane, the owner every time they respawn.
+        string name = f.Faction == Faction.Player ? "HIDDEN KING'S COURT" : "THE GUIDED HAND";
+        Box(chunk, f, stone, new Vector3(0f, 8.6f, BaseFrontZ), new Vector3(LaneHalfWidth * 2f + 2.4f, 1.2f, 1.2f), SandstoneTile, false);
+        Sign(chunk, f.P(0f, 8.6f, BaseFrontZ + 0.66f), f.N(Vector3.forward), 12f, 1f, teamNeon[f.Faction], name, false);
+        Sign(chunk, f.P(0f, 8.6f, BaseFrontZ - 0.66f), f.N(Vector3.back), 12f, 1f, teamNeon[f.Faction], name, false);
     }
 
-    /// <summary>Times Square: neon screens on the blocks facing the plaza, kiosks and banners over the lane.</summary>
+    /// <summary>Times Square: neon signs on the blocks facing the plaza, kiosks and banners over the lane.</summary>
     private static void BuildPlaza()
     {
         const string chunk = "Plaza";
-        Material[] screens = { neonBlue, neonPink, neonPurple, neonCyan };
+        Neon[] colors = { blue, pink, purple, cyan };
+        string[] screens = { "TIMES SQ", "BROADWAY", "THE RITUAL", "DEADLOCK" };
+        string[] strips = { "NOW PLAYING", "OPEN LATE", "HOT COFFEE", "NEWS 24H" };
+        string[] kiosks = { "NEWS", "SNACKS", "TICKETS", "SOUVENIRS" };
         int i = 0;
 
         foreach (int half in new[] { 1, -1 })
@@ -592,22 +752,23 @@ public static class DeadlockExpandedMap
             {
                 var f = new Frame(half, side);
 
-                // Big screens on the block ends facing the square.
-                Quad(chunk, screens[i % 4], f.P(13f, 9f, PlazaEdgeZ + 0.12f), f.N(Vector3.forward), 7f, 4f);
-                Quad(chunk, screens[(i + 1) % 4], f.P(13f, 5.6f, PlazaEdgeZ + 0.12f), f.N(Vector3.forward), 5f, 1.2f);
+                // Big signs on the block ends facing the square, with a smaller strip below.
+                Sign(chunk, f.P(13f, 9f, PlazaEdgeZ + 0.15f), f.N(Vector3.forward), 7f, 3.4f, colors[i % 4], screens[i]);
+                Sign(chunk, f.P(13f, 5.6f, PlazaEdgeZ + 0.15f), f.N(Vector3.forward), 5f, 1.1f, colors[(i + 1) % 4], strips[i]);
 
-                // A kiosk with a lit roof: cover in the open square.
+                // A kiosk in the open square: cover, with its sign on the side facing the lane.
                 Box(chunk, f, metal, new Vector3(12f, 1.2f, -5f), new Vector3(2.4f, 2.4f, 2.4f), 0f, true);
-                Box(chunk, f, screens[(i + 2) % 4], new Vector3(12f, 2.55f, -5f), new Vector3(2.8f, 0.3f, 2.8f), 0f, false);
+                Box(chunk, f, metal, new Vector3(12f, 2.55f, -5f), new Vector3(2.8f, 0.3f, 2.8f), 0f, false);
+                Sign(chunk, f.P(10.74f, 1.75f, -5f), f.N(Vector3.left), 2f, 0.7f, colors[(i + 2) % 4], kiosks[i], false);
                 i++;
             }
 
-            // Banner screen over the lane, high enough to walk under, lit on both faces since it
-            // is seen from the square as well as from the lane.
+            // Banner over the lane, high enough to walk under, lettered on both faces since it is
+            // seen from the lane on the way in and from the square on the way out.
             var h = new Frame(half, 1);
             Box(chunk, h, metal, new Vector3(0f, 9.5f, PlazaEdgeZ + 1f), new Vector3(LaneHalfWidth * 2f + 1f, 2.6f, 0.3f), 0f, false);
-            Quad(chunk, neonBlue, h.P(0f, 9.5f, PlazaEdgeZ + 1f - 0.16f), h.N(Vector3.back), LaneHalfWidth * 2f - 1f, 2f);
-            Quad(chunk, neonPurple, h.P(0f, 9.5f, PlazaEdgeZ + 1f + 0.16f), h.N(Vector3.forward), LaneHalfWidth * 2f - 1f, 2f);
+            Sign(chunk, h.P(0f, 9.5f, PlazaEdgeZ + 1f - 0.21f), h.N(Vector3.back), LaneHalfWidth * 2f - 1f, 2f, blue, "TIMES SQUARE", false);
+            Sign(chunk, h.P(0f, 9.5f, PlazaEdgeZ + 1f + 0.21f), h.N(Vector3.forward), LaneHalfWidth * 2f - 1f, 2f, purple, "BROADWAY", false);
         }
 
         // Crossing stripes where Broadway enters the square.
@@ -638,6 +799,15 @@ public static class DeadlockExpandedMap
             Box(chunk, f, coverMaterial, c + Vector3.up * 0.7f, new Vector3(2f, 1.4f, 1.4f), SandstoneTile, true);
         }
 
+        // The district's name where the player turns into it: from the square and from the cross street.
+        Neon neon = d == District.Chinatown ? red : d == District.HauntedLot ? green : d == District.Plaza ? purple : yellow;
+        string name = d == District.Chinatown ? "CHINATOWN" : d == District.HauntedLot ? "HAUNTED LOT" : d == District.Plaza ? "FAIRFAX PLAZA" : "THEATER DISTRICT";
+
+        foreach (float z in new[] { -16f, -37f })
+        {
+            Sign(chunk, f.P(AlleyOuterX - 0.06f, 5.2f, z), f.N(Vector3.left), 6f, 1.3f, neon, name);
+        }
+
         switch (d)
         {
             case District.Chinatown:
@@ -645,7 +815,14 @@ public static class DeadlockExpandedMap
                 for (float z = -66f; z <= -18f; z += 8f)
                 {
                     Box(chunk, f, metal, new Vector3(midX, 4.8f, z), new Vector3(AlleyOuterX - BlockOuterX, 0.04f, 0.04f), 0f, false);
-                    foreach (float x in new[] { 21f, 24f, 27f }) Lamp(chunk, f.P(x, 4.4f, z), 0.55f, neonRed);
+
+                    foreach (float x in new[] { 21f, 24f, 27f })
+                    {
+                        // A red lantern with dark caps, so it reads as a lantern rather than a red cube.
+                        Lamp(chunk, f.P(x, 4.4f, z), 0.55f, neonRed);
+                        Box(chunk, f, metal, new Vector3(x, 4.71f, z), new Vector3(0.36f, 0.08f, 0.36f), 0f, false);
+                        Box(chunk, f, metal, new Vector3(x, 4.09f, z), new Vector3(0.36f, 0.08f, 0.36f), 0f, false);
+                    }
                 }
 
                 for (float z = -68f; z < -16f; z += 9f)
@@ -658,6 +835,7 @@ public static class DeadlockExpandedMap
                 Box(chunk, f, lacquer, new Vector3(AlleyOuterX - 0.6f, 2.6f, -13.5f), new Vector3(0.7f, 5.2f, 0.7f), 0f, true);
                 Box(chunk, f, lacquer, new Vector3(midX, 5.4f, -13.5f), new Vector3(12.4f, 0.6f, 0.8f), 0f, false);
                 Box(chunk, f, jade, new Vector3(midX, 5.85f, -13.5f), new Vector3(13.2f, 0.3f, 1.6f), 0f, false);
+                BladeSign(chunk, f.P(midX, 6.85f, -13.5f), f.N(Vector3.forward), 5.5f, 1.1f, red, "CHINATOWN");
 
                 Box(chunk, f, brickDark, court + new Vector3(0f, 6f, 0f), new Vector3(3f, 12f, 3f), BrickTile, true);
                 Box(chunk, f, jade, court + new Vector3(0f, 12.3f, 0f), new Vector3(4f, 0.6f, 4f), 0f, false);
@@ -691,6 +869,7 @@ public static class DeadlockExpandedMap
                 Box(chunk, f, bronze, court + new Vector3(0f, 3.4f, 0f), new Vector3(0.9f, 2.4f, 0.7f), 0f, false);
                 Box(chunk, f, bronze, court + new Vector3(0f, 4.85f, 0f), new Vector3(0.5f, 0.5f, 0.5f), 0f, false);
                 Box(chunk, f, bronze, court + new Vector3(0.5f, 4.6f, 0f), new Vector3(0.2f, 1.2f, 0.2f), 0f, false);
+                Sign(chunk, f.P(court + new Vector3(-1.36f, 1.5f, 0f)), f.N(Vector3.left), 1.9f, 0.55f, purple, "FAIRFAX", false);
 
                 for (float z = -66f; z <= -16f; z += 10f)
                 {
@@ -702,7 +881,7 @@ public static class DeadlockExpandedMap
             case District.Theater:
                 // A marquee over the courtyard with a row of bulbs, posters and a red carpet.
                 Box(chunk, f, metal, new Vector3(CourtyardBackX - 0.3f, 5f, court.z), new Vector3(0.6f, 2.2f, 8f), 0f, false);
-                Quad(chunk, neonYellow, f.P(CourtyardBackX - 0.62f, 5f, court.z), f.N(Vector3.left), 7.4f, 1.6f);
+                Sign(chunk, f.P(CourtyardBackX - 0.66f, 5f, court.z), f.N(Vector3.left), 7.4f, 1.6f, yellow, "TONIGHT: THE RITUAL", false);
 
                 for (float z = court.z - 3.6f; z <= court.z + 3.6f; z += 0.9f)
                 {
@@ -711,11 +890,15 @@ public static class DeadlockExpandedMap
 
                 Quad(chunk, neonRed, f.P((AlleyOuterX + CourtyardBackX) / 2f, MarkingY, court.z), Vector3.up, CourtyardBackX - AlleyOuterX, 2f);
 
-                // On the edge buildings only, not over the open courtyard.
-                foreach (float z in new[] { -64f, -40f, -28f, -18f })
+                // Show posters for the two heroes, on the edge buildings only, not over the open
+                // courtyard, and beside the doors (which sit mid-building) rather than over them.
+                float[] posterZ = { -61.8f, -37.8f, -25.8f, -18.8f };
+                string[] posters = { "SEVEN", "VINDICTA", "THE\nRITUAL", "SOLD\nOUT" };
+
+                for (int p = 0; p < posterZ.Length; p++)
                 {
-                    Quad(chunk, neonPink, f.P(AlleyOuterX - 0.03f, 2.2f, z), f.N(Vector3.left), 1.2f, 1.8f);
-                    Lamp(chunk, f.P(AlleyOuterX - 0.4f, 3.8f, z + 2f), 0.35f, lamp);
+                    Sign(chunk, f.P(AlleyOuterX - 0.06f, 2.2f, posterZ[p]), f.N(Vector3.left), 1.4f, 1.9f, pink, posters[p]);
+                    Lamp(chunk, f.P(AlleyOuterX - 0.4f, 3.7f, posterZ[p]), 0.35f, lamp);
                 }
                 break;
         }
