@@ -38,6 +38,13 @@ public class ScreenFader : MonoBehaviour
         return StartCoroutine(FadeTo(1f, duration < 0f ? defaultDuration : duration));
     }
 
+    /// <summary>Back from black to the scene.</summary>
+    public Coroutine FadeIn(float duration = -1f)
+    {
+        StopAllCoroutines();
+        return StartCoroutine(FadeTo(0f, duration < 0f ? defaultDuration : duration));
+    }
+
     private IEnumerator FadeTo(float target, float duration)
     {
         float start = group.alpha;

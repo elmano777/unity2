@@ -191,7 +191,18 @@ public class HeroSelectManager : MonoBehaviour
     {
         // Heroes without intro lines go straight to the match; their entry line then plays in the match
         // scene (HeroEntryAnnouncer), because GameSession.EntryLinePlayed stays false.
-        bool hasIntro = introPlayer != null && IntroSequencePlayer.HasLines(hero.introLines);
+        // An online match (a room created or picked in the garage) plays the welcome in the Lane, together
+        // with the other player once both are in the room; only the practice plays it here.
+        bool mission = PlayerPrefs.GetInt(TitleScreenManager.MissionRequestedKey, 0) == 1;
+        bool welcomeInLane = !mission && OnlineIntent.Mode != OnlineIntent.OnlineMode.Auto;
+
+        if (welcomeInLane && GameSession.Instance != null)
+        {
+            // The Lane's entry announcer would otherwise say it right away, before the welcome.
+            GameSession.Instance.EntryLinePlayed = true;
+        }
+
+        bool hasIntro = introPlayer != null && IntroSequencePlayer.HasLines(hero.introLines) && !welcomeInLane;
 
         // The select bark fades out so that it is silent exactly when the screen is black
         // (never overlapping the entry line that starts with the intro).

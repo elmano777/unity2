@@ -47,10 +47,10 @@ public class MatchmakingStatusView : MonoBehaviour
         switch (status)
         {
             case DuelMatchmaker.Status.SigningIn: text = "Conectando..."; break;
-            case DuelMatchmaker.Status.Searching: text = "Buscando sala..."; break;
+            case DuelMatchmaker.Status.Searching: text = string.IsNullOrEmpty(detail) ? "Buscando sala..." : detail; break;
             case DuelMatchmaker.Status.Joining: text = "Entrando a la sala..." + Small(detail); break;
             case DuelMatchmaker.Status.WaitingForRival: text = "Esperando al rival..." + Small(detail) + Small(BackHint); break;
-            case DuelMatchmaker.Status.Connected: text = "<color=#7CFC9A>Rival conectado. ¡Que empiece el ritual!</color>"; break;
+            case DuelMatchmaker.Status.Connected: text = "<color=#7CFC9A>¡Rival conectado!</color>"; break;
             case DuelMatchmaker.Status.RivalLeft: text = $"<color=#FFB347>{detail}</color>" + Small(BackHint); break;
             case DuelMatchmaker.Status.Offline: text = detail; break;
             case DuelMatchmaker.Status.Failed: text = $"<color=#FF6B6B>No se pudo conectar</color>{Small(detail)}{Small(BackHint)}"; break;

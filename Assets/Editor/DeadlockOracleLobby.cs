@@ -75,7 +75,7 @@ public static class DeadlockOracleLobby
         Debug.Log("[Deadlock Lobby] Oracle hall built in TitleScreen.");
     }
 
-    private static void CreateMaterials()
+    internal static void CreateMaterials()
     {
         var paving = AssetDatabase.LoadAssetAtPath<Texture2D>($"{TextureDir}/precast_stone_paving_diff.jpg");
         var sandstone = AssetDatabase.LoadAssetAtPath<Texture2D>($"{TextureDir}/sandstone_blocks_08_diff.jpg");
@@ -366,7 +366,7 @@ public static class DeadlockOracleLobby
         return runes;
     }
 
-    private static WorldButton Rune(Transform parent, Transform orb, string name, Vector3 position, string title, string subtitle, out TextMeshPro recommended)
+    internal static WorldButton Rune(Transform parent, Transform orb, string name, Vector3 position, string title, string subtitle, out TextMeshPro recommended)
     {
         var rune = new GameObject(name);
         rune.transform.SetParent(parent, false);
@@ -522,11 +522,11 @@ public static class DeadlockOracleLobby
         var go = new GameObject("GarageAmbience");
         go.transform.SetParent(root, false);
         AudioSource source = go.AddComponent<AudioSource>();
-        source.clip = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/Ambience/amb_garage_lp_l.mp3");
+        source.clip = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Audio/Ambience/Garage/amb_garage_lp_l.mp3");
         source.loop = true;
         source.playOnAwake = true;
         source.spatialBlend = 0f;
-        source.volume = 0.6f;
+        source.volume = 0.8f;
     }
 
     private static void SetupPlayer()
