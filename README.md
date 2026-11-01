@@ -39,18 +39,45 @@ Proyecto final de **CS2H01 – Interacción Humano-Computador** (UTEC, ciclo 202
 
 Verificado en Play Mode sin visor. Pendiente: probar todo con el Quest y una partida real entre dos visores.
 
-## Avance 3 (semana 12)
+## Avance 3 (semana 12, 50 %)
 
-- **El anfitrión manda en el mundo (RF-08, RF-09).** Los minions, las torres y las almas los crea y los mueve el anfitrión; el que se une los ve como copias (`NetworkHealth`, `NetworkTransform`, `NetworkSoul`, `NetworkTower`). Nada aparece hasta que el rival entra a la sala (`MatchNet`).
-- **Disparo y daño.** Los disparos del que se une viajan al anfitrión, que aplica el daño y lo publica: los dos ven las mismas barras de vida y las mismas muertes. Cada jugador tiene un cuerpo (cápsula bajo la cabeza, capa `Rival` para el otro) que los minions y las torres atacan y que el rival puede disparar; al caer reaparece a los 5 s en su lado. El rival ve el trazador de cada disparo.
-- **Almas.** El anfitrión crea las almas; quien dispare primero se queda con ellas y el anfitrión le paga a su cartera.
+### Partida online completa (RF-08, RF-09, RNF-03)
+
+- **El anfitrión manda en el mundo.** Los minions, las torres y las almas los crea y los mueve el anfitrión; el que se une los ve como copias (`NetworkHealth`, `NetworkTransform`, `NetworkSoul`, `NetworkTower`). Nada aparece hasta que los dos están listos (`MatchNet`).
+- **Crear o elegir sala.** "Partida online" en el garage abre dos runas: **CREAR SALA** y **ELEGIR SALA**, con una lista de hasta 4 salas abiertas (nombre "Sala 4821", héroe del anfitrión y plazas; ATRÁS y ACTUALIZAR) (`RoomBoard`, `RoomBrowser`, `OnlineIntent`). Si la sala es de otra versión, ya no existe o está llena, el juego lo dice; si el anfitrión no responde en 12 s, avisa y deja volver.
+- **Bienvenida juntos y arranque a la vez.** Con los dos en la sala, cada uno oye la bienvenida de su héroe y espera con "Esperando al otro jugador..."; cuando ambos terminaron, el anfitrión arranca la partida y los dos empiezan desde cero al mismo tiempo (`WelcomeSequence`, `MatchStartSync`).
+- **Arreglo de conexión.** La etiqueta de sala usaba un hash de configuración que Netcode guardaba antes de registrar los prefabs; el anfitrión rechazaba al que se unía con "NetworkConfig mismatch".
+
+### Disparo, daño y almas (RF-06, RF-07)
+
+- **Disparo y daño sincronizados.** Los disparos del que se une viajan al anfitrión, que aplica el daño y lo publica: los dos ven las mismas barras de vida y las mismas muertes. El rival ve el trazador de cada disparo.
+- **Cuerpo del jugador.** Una cápsula bajo la cabeza que los minions, las torres y el rival pueden golpear; al caer, el jugador reaparece a los 5 s en su lado.
+- **Almas.** Se recogen disparándoles; quien dispara primero se queda con ellas y el anfitrión le paga a su cartera.
 - **Una torre por bando.** `StructureSpawner` levanta la torre Guardian de cada lado; cada jugador ataca la del otro.
-- **Mi misión (RF-04, RF-13).** Práctica sin conexión en 6 pasos con panel flotante de pistas (`HintBoard`, `MissionGuide`): caminar, girar, disparar, eliminar un minion, recoger un alma y destruir la torre. Al terminar se marca como completada. En la práctica no se puede morir y solo juega el bando rival.
-- **Arreglo de conexión.** La etiqueta de sala se calculaba con un hash de configuración que Netcode guardaba antes de registrar los prefabs; el anfitrión rechazaba al que se unía con "NetworkConfig mismatch".
 
-Verificado con el editor de anfitrión y un cliente de Windows: ambos ven los mismos minions, torres y almas, y los golpes del cliente (a minions, torre, almas y al anfitrión) llegan al anfitrión. Pendiente: probarlo con dos Quest.
+### Mi misión: práctica guiada (RF-03, RF-04, RF-13, RNF-05)
 
-Pasos de editor nuevos: `Deadlock/Setup/18` (red de minions, almas, torre y cuerpo) y `19` (Mi misión). Para probar el duelo sin visores: `Deadlock/Debug/Build Windows Test Client` y abrir el cliente con `-selftest` mientras el editor hace de anfitrión; `DuelDiagnostics` escribe en el log lo que ve cada lado.
+- Práctica sin conexión en 6 pasos con un panel flotante de pistas que sigue la mirada (`MissionGuide`, `HintBoard`): caminar, girar, disparar, eliminar un minion, recoger un alma y destruir la torre. Cada paso avanza solo cuando el jugador lo hace.
+- Al terminar aparece "¡MISIÓN CUMPLIDA!" y se marca como completada (deja de recomendarse en el garage).
+- En la práctica no se puede morir y solo juega el bando rival.
+
+### Mundo y personajes
+
+- **Mapa ampliado "mini Broadway" (RF-15, RNF-05).** El carril pasa de una calle de 60 × 14 m a un mapa de ~190 × 80 m inspirado en el carril central de *The Cursed Apple*: plaza Times Square en el centro, cuatro distritos a los lados (Haunted Lot, Chinatown, Fairfax Plaza y Theater) con coberturas, y una base por bando con su arco (HIDDEN KING'S COURT / THE GUIDED HAND). Carteles de neón con el nombre de cada zona para orientarse. El Walker, los santuarios y el patrón están como marcadores hasta el avance 4.
+- **Teleportadores.** Uno por bando entre la base y la calle junto al Guardian: 1 s parado encima, fundido a negro y llegada mirando hacia el carril.
+- **Héroes animados.** Seven y Vindicta tienen esqueleto y animaciones de reposo y caminar, que se ven en el avatar del rival.
+- **Torre Guardian animada.** Apunta antes de disparar, el rayo sale de la punta del bastón (color por bando) y se desploma al ser destruida.
+- **Minions animados.** Los seis tienen esqueleto y animaciones de reposo, caminar y ataque. El Medic ahora también pelea, lanza orbes que curan a sus aliados y, al morir, suelta un orbe que cura 25 al jugador que lo mató.
+- **Sonido de cada lugar.** Ambiente en bucle con sonidos sueltos alrededor del jugador en la intro, el garage, la selección de héroe y el carril.
+
+### Pruebas
+
+- "Mi misión" se probó en el laboratorio con el Quest por Quest Link, del paso 1 al 6 ([video del avance 3](https://drive.google.com/drive/folders/1HYkEiQKu8cs_IuhzPMskc_Ofp67i7_Os?usp=sharing)).
+- El duelo online se verificó primero con el editor de anfitrión y un cliente de Windows (ambos ven los mismos minions, torres y almas, y los golpes del cliente llegan al anfitrión) y luego se demostró en vivo al profesor durante la clase. Esa demostración no quedó grabada.
+- Pendiente: medir los FPS del mapa nuevo en el Quest.
+- Capturas del avance en `Capturas/Entrega3` (resumen en `Capturas/Entrega3_resumen.png`).
+
+Pasos de editor nuevos: `Deadlock/Setup/18` (red de minions, almas, torre y cuerpo), `19` (Mi misión), `20` (animaciones de los héroes), `21` (torre animada), `22` (minions animados), `23` (sonido ambiente), `24` (tablero de salas), `25` (bienvenida sincronizada) y `26` (mapa ampliado). Para probar el duelo sin visores: `Deadlock/Debug/Build Windows Test Client` y abrir el cliente con `-selftest` mientras el editor hace de anfitrión; `DuelDiagnostics` escribe en el log lo que ve cada lado.
 
 ## Próximos avances
 
@@ -65,6 +92,6 @@ Pasos de editor nuevos: `Deadlock/Setup/18` (red de minions, almas, torre y cuer
 2. Conectar el Quest por Quest Link.
 3. Darle Play: siempre arranca en `Intro` (se desactiva con `Deadlock/Play From Title Screen` para jugar la escena abierta).
 
-Las escenas se arman con los scripts del menú `Deadlock/Setup/1..19`, no a mano.
+Las escenas se arman con los scripts del menú `Deadlock/Setup/1..26`, no a mano (el orden y qué hay que re-correr está en `CLAUDE.md`).
 
 **Para jugar online entre dos visores:** los dos deben instalar **el mismo APK**, compilado desde el mismo commit. Un APK de otra versión no puede entrar a la sala.
