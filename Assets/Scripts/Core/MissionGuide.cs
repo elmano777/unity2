@@ -25,7 +25,7 @@ public class MissionGuide : MonoBehaviour
     [Tooltip("Seconds the closing message stays up.")]
     [SerializeField] private float closingSeconds = 12f;
 
-    private enum Step { Walk, Turn, Shoot, KillMinion, CollectSoul, DestroyTower, Done }
+    private enum Step { Walk, Turn, Shoot, KillMinion, CollectSoul, UseAbility, DestroyTower, Done }
 
     private Step step = Step.Walk;
     private Transform rig;
@@ -88,6 +88,7 @@ public class MissionGuide : MonoBehaviour
         GameEvents.ShotFired += OnShot;
         GameEvents.MinionKilled += OnMinionKilled;
         GameEvents.SoulsCollected += OnSouls;
+        GameEvents.AbilityUsed += OnAbility;
         GameEvents.TowerDestroyed += OnTowerDestroyed;
 
         running = true;
@@ -99,6 +100,7 @@ public class MissionGuide : MonoBehaviour
         GameEvents.ShotFired -= OnShot;
         GameEvents.MinionKilled -= OnMinionKilled;
         GameEvents.SoulsCollected -= OnSouls;
+        GameEvents.AbilityUsed -= OnAbility;
         GameEvents.TowerDestroyed -= OnTowerDestroyed;
     }
 
@@ -148,6 +150,14 @@ public class MissionGuide : MonoBehaviour
     {
         if (step == Step.CollectSoul)
         {
+            Advance(Step.UseAbility);
+        }
+    }
+
+    private void OnAbility(AbilitySO ability)
+    {
+        if (step == Step.UseAbility)
+        {
             Advance(Step.DestroyTower);
         }
     }
@@ -187,27 +197,31 @@ public class MissionGuide : MonoBehaviour
         switch (step)
         {
             case Step.Walk:
-                text = "MISIÓN 1/6\nCamina con el stick izquierdo";
+                text = "MISIÓN 1/7\nCamina con el stick izquierdo";
                 break;
 
             case Step.Turn:
-                text = "MISIÓN 2/6\nGira con el stick derecho";
+                text = "MISIÓN 2/7\nGira con el stick derecho";
                 break;
 
             case Step.Shoot:
-                text = "MISIÓN 3/6\nDispara con el gatillo derecho";
+                text = "MISIÓN 3/7\nDispara con el gatillo derecho";
                 break;
 
             case Step.KillMinion:
-                text = "MISIÓN 4/6\nElimina un minion enemigo.\nUsa las coberturas del carril";
+                text = "MISIÓN 4/7\nElimina un minion enemigo.\nUsa las coberturas del carril";
                 break;
 
             case Step.CollectSoul:
-                text = "MISIÓN 5/6\nDispara a un alma brillante\npara recogerla";
+                text = "MISIÓN 5/7\nDispara a un alma brillante\npara recogerla";
+                break;
+
+            case Step.UseAbility:
+                text = "MISIÓN 6/7\nApunta y pulsa A o X\npara usar una habilidad.\nMira tu muñeca izquierda";
                 break;
 
             case Step.DestroyTower:
-                text = "MISIÓN 6/6\nAvanza y destruye la torre Guardián";
+                text = "MISIÓN 7/7\nAvanza y destruye la torre Guardián.\nCompra mejoras en la tienda de tu base";
                 break;
 
             default:

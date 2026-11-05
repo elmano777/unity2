@@ -43,6 +43,9 @@ public class ComfortLocomotion : MonoBehaviour
     /// <summary>0 when standing still, 1 at full stick speed. Read by the vignette.</summary>
     public float Speed01 { get; private set; }
 
+    /// <summary>Multiplies the walking speed. Raised by the shop's speed item.</summary>
+    public float SpeedMultiplier { get; set; } = 1f;
+
     /// <summary>Raised on every snap turn, so the vignette can blink through the cut.</summary>
     public event System.Action Turned;
 
@@ -109,7 +112,7 @@ public class ComfortLocomotion : MonoBehaviour
 
         Vector3 forward = Vector3.ProjectOnPlane(head.forward, Vector3.up).normalized;
         Vector3 right = Vector3.Cross(Vector3.up, forward);
-        Vector3 step = (forward * stick.y + right * stick.x) * (moveSpeed * Time.deltaTime);
+        Vector3 step = (forward * stick.y + right * stick.x) * (moveSpeed * SpeedMultiplier * Time.deltaTime);
 
         // Cast from the player's actual body (where the head is), not the rig origin, which can
         // be a metre away if the player has walked around their play space.

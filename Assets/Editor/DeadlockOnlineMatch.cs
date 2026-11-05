@@ -47,6 +47,15 @@ public static class DeadlockOnlineMatch
         networked.Add(EditPrefab(SoulPath, AddSoulNetwork));
         networked.Add(EditPrefab(TowerPath, root => AddTowerNetwork(root, rivalBit)));
 
+        // The Walker, shrines and patron from step 27, if it has run.
+        if (AssetDatabase.IsValidFolder(DeadlockObjectives.PrefabFolder))
+        {
+            foreach (string guid in AssetDatabase.FindAssets("t:Prefab", new[] { DeadlockObjectives.PrefabFolder }))
+            {
+                networked.Add(AssetDatabase.LoadAssetAtPath<GameObject>(AssetDatabase.GUIDToAssetPath(guid)));
+            }
+        }
+
         foreach (string path in WeaponPaths)
         {
             EditPrefab(path, root => AddLayerToMask(root.GetComponent<Weapon>(), "hitMask", rivalBit));
@@ -113,6 +122,7 @@ public static class DeadlockOnlineMatch
         Ensure<NetworkObject>(root);
         Ensure<NetworkHealth>(root);
         Ensure<NetworkTower>(root);
+        Ensure<NetworkStructure>(root);
         AddLayerToMask(root.GetComponent<Tower>(), "targetMask", rivalBit);
     }
 

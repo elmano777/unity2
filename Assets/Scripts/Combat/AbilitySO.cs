@@ -17,9 +17,9 @@ public enum AbilityShape
 }
 
 /// <summary>
-/// One hero ability, cast with a controller button (RF-10). Data only for now — the component
-/// that casts these arrives with the abilities deliverable; defining the data early keeps the
-/// hero assets complete and lets the numbers be tuned during playtests.
+/// One hero ability, cast with a controller button (RF-10). <see cref="AbilityCaster"/> reads these
+/// from the selected hero's <see cref="HeroDefinitionSO.abilities"/>; the numbers are tuned here so
+/// playtests only touch assets.
 /// Create via Assets > Create > Deadlock > Ability.
 /// </summary>
 [CreateAssetMenu(fileName = "NewAbility", menuName = "Deadlock/Ability", order = 21)]
@@ -36,8 +36,14 @@ public class AbilitySO : ScriptableObject
     [Tooltip("Voice line or cast sound.")]
     public AudioClip castClip;
 
+    [Tooltip("Sound where the ability lands.")]
+    public AudioClip impactClip;
+
     [Tooltip("Effect spawned at the point of impact.")]
     public GameObject effectPrefab;
+
+    [Tooltip("Colour of the orb, the burst or the beam.")]
+    public Color tint = new Color(0.45f, 0.8f, 1f, 1f);
 
     [Header("Cost and timing")]
     [Tooltip("Seconds before it can be cast again.")]
@@ -47,6 +53,10 @@ public class AbilitySO : ScriptableObject
     [Tooltip("Seconds the effect lasts, for abilities that persist.")]
     [Min(0f)]
     public float duration;
+
+    [Tooltip("Seconds the orb takes to fly to an aimed area before it bursts. 0 bursts at once.")]
+    [Min(0f)]
+    public float travelTime = 0.3f;
 
     [Header("Effect")]
     public AbilityShape shape = AbilityShape.AreaAtAim;

@@ -79,11 +79,44 @@ Verificado en Play Mode sin visor. Pendiente: probar todo con el Quest y una par
 
 Pasos de editor nuevos: `Deadlock/Setup/18` (red de minions, almas, torre y cuerpo), `19` (Mi misión), `20` (animaciones de los héroes), `21` (torre animada), `22` (minions animados), `23` (sonido ambiente), `24` (tablero de salas), `25` (bienvenida sincronizada) y `26` (mapa ampliado). Para probar el duelo sin visores: `Deadlock/Debug/Build Windows Test Client` y abrir el cliente con `-selftest` mientras el editor hace de anfitrión; `DuelDiagnostics` escribe en el log lo que ve cada lado.
 
+## Avance 4 (semana 13, 70 %)
+
+### Objetivos en secuencia y patrón final (RF-12)
+
+- **Cada bando defiende una cadena:** Guardián (z ±24) → Walker (±46) → 2 Guardianes de base (±66) → 2 Santuarios (±80) → Patrón (±86). Cada objetivo tiene más vida que el anterior (y los que atacan, más daño).
+- **Escudo hasta que cae el anterior.** Mientras quede en pie un objetivo de menor nivel del mismo bando, el siguiente está protegido por una burbuja dorada y no recibe daño; los minions tampoco lo atacan, para que la oleada no se trabe. El anfitrión decide los escudos y el rival los ve igual (`NetworkStructure`).
+- **El Walker y el Patrón disparan** con el rayo del Guardián desde su ojo y su orbe; los Santuarios solo resisten. Los modelos del mapa siguen siendo los marcadores de primitivas del avance 3: lo que se golpea es un objetivo invisible que el anfitrión crea encima, y al caer el marcador se hunde y se apaga (`ObjectiveVisual`).
+- **Al caer el patrón termina el ritual:** "¡VICTORIA!" y la frase de victoria del héroe para quien lo destruyó, "DERROTA" para el otro (`MatchOutcome`). Cada objetivo que cae se anuncia con el siguiente de la cadena. La pantalla final completa es del avance 5.
+
+### Habilidades (RF-10)
+
+- Dos por héroe, con **A** (control derecho) y **X** (control izquierdo); se apuntan con la mano derecha y tienen enfriamiento (`AbilityCaster`, datos en `Assets/Data/Abilities`).
+  - **Seven:** *Bola relámpago* (orbe que estalla donde apuntas, 70 de daño, 8 s) y *Nube de tormenta* (descarga alrededor, 90 de daño, 20 s).
+  - **Vindicta:** *Estaca* (área donde apuntas, 55, 10 s) y *Asesinar* (disparo de francotiradora de 70 m, 150, 16 s).
+- El rival ve cada habilidad que lanzas (`AbilityFx`). El daño va por el mismo camino que las balas, así que online lo aplica el anfitrión.
+- **Muñeca izquierda:** al mirar la mano izquierda se leen las almas, cada habilidad con su botón y su enfriamiento, y el siguiente objetivo rival (`WristHud`).
+
+### Tienda (RF-11)
+
+- Un puesto en cada base, junto al punto de aparición. **Se compra disparándole al objeto**, el mismo gesto que recoge almas, sin láser ni menús en medio de la pelea (`ShopKiosk`, `ShopPlaque`).
+- Cinco objetos (`Assets/Data/Shop`): *Vitalidad extra* (+75 de vida, 200), *Balas potenciadas* (+5 de daño, 250), *Gatillo rápido* (15 % más cadencia, 300), *Botas de carrera* (20 % más velocidad, 150) y *Coraza* (−4 por golpe, 250), con un máximo de 2 o 3 de cada uno. Cada placa muestra precio, efecto y cuántos tienes; se pone gris si no alcanza y avisa cuántas almas faltan. La tienda del rival no te vende.
+- La vida y la coraza las aplica el anfitrión (`NetworkPlayer.RequestBodyUpgrade`); el daño, la cadencia y la velocidad son locales.
+
+### Mi misión
+
+- Nuevo paso 6/7: **usar una habilidad** (A o X), con la pista de mirar la muñeca. El último paso recuerda la tienda.
+
+### Pruebas
+
+- Verificado en Play sin visor (práctica): la cadena rival aparece completa con un solo objetivo sin escudo; golpear al patrón con escudo no le quita vida; destruyendo en orden se van liberando Walker → Guardianes de base → Santuarios → Patrón y al caer el patrón la partida pasa a victoria con su cartel. Habilidad con enfriamiento, compras (daño 20 → 25, vida 300 → 375, tope de objetos) y tienda del rival que rechaza.
+- Pendiente: probarlo online entre dos máquinas, con el Quest (lectura de la muñeca, tiro a las placas) y equilibrar precios y vidas con partidas reales.
+
+Paso de editor nuevo: `Deadlock/Setup/27` (objetivos, habilidades, tienda y muñeca).
+
 ## Próximos avances
 
 | Avance | Semana | Contenido |
 |---|---|---|
-| 4 | 13 | Habilidades, tienda, torres en secuencia y patrón final |
 | 5 | 14 | Pantalla final con resumen y voto, estadísticas en archivo, pruebas con usuarios |
 
 ## Cómo abrirlo
@@ -92,6 +125,6 @@ Pasos de editor nuevos: `Deadlock/Setup/18` (red de minions, almas, torre y cuer
 2. Conectar el Quest por Quest Link.
 3. Darle Play: siempre arranca en `Intro` (se desactiva con `Deadlock/Play From Title Screen` para jugar la escena abierta).
 
-Las escenas se arman con los scripts del menú `Deadlock/Setup/1..26`, no a mano (el orden y qué hay que re-correr está en `CLAUDE.md`).
+Las escenas se arman con los scripts del menú `Deadlock/Setup/1..27`, no a mano (el orden y qué hay que re-correr está en `CLAUDE.md`).
 
 **Para jugar online entre dos visores:** los dos deben instalar **el mismo APK**, compilado desde el mismo commit. Un APK de otra versión no puede entrar a la sala.

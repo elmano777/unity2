@@ -91,6 +91,21 @@ public class Weapon : MonoBehaviour
         set => owner = value;
     }
 
+    /// <summary>Damage of one bullet, after shop upgrades.</summary>
+    public float Damage => damage;
+
+    /// <summary>Adds flat damage per bullet. Used by the shop's damage item.</summary>
+    public void AddDamage(float amount)
+    {
+        damage = Mathf.Max(1f, damage + amount);
+    }
+
+    /// <summary>Multiplies the time between shots: below 1 fires faster. Used by the shop's fire-rate item.</summary>
+    public void ScaleFireInterval(float factor)
+    {
+        fireInterval = Mathf.Max(0.04f, fireInterval * Mathf.Max(0.1f, factor));
+    }
+
     private void Awake()
     {
         if (muzzle == null)

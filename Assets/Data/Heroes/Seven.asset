@@ -27,6 +27,9 @@ MonoBehaviour:
     type: 3}
   rigRootName: Seven_Rig
   walkClipSpeed: 1.7
+  abilities:
+  - {fileID: 11400000, guid: 7eaf8dca063564a458471e39fbe1f3b1, type: 2}
+  - {fileID: 11400000, guid: d5a70e4f039ed274ba115a5badd34f39, type: 2}
   introLines:
   - You escaped Lost Whisper.
   - You killed your tormentors.

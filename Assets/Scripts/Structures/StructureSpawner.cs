@@ -7,8 +7,8 @@ using UnityEngine;
 /// joining player's copy of this component waits and never creates anything (see <see cref="MatchNet"/>).
 /// </summary>
 /// <remarks>
-/// Offline ("Mi misión") it simply creates the tower at once. Later towers in the sequence (E4) are
-/// more of these, each with a higher tier.
+/// Offline ("Mi misión") it simply creates the tower at once. Every objective of the sequence (RF-12)
+/// is one of these: Guardian, Walker, Base Guardians, shrines and patron, each with its tier.
 /// </remarks>
 public class StructureSpawner : MonoBehaviour
 {
@@ -19,6 +19,9 @@ public class StructureSpawner : MonoBehaviour
 
     [Tooltip("Position in the sequence, 1 for the first tower. Higher tiers get more health and damage.")]
     [SerializeField] private int tier = 1;
+
+    [Tooltip("Name on the HUD, overriding the prefab's (e.g. \"Guardián de base\"). Empty keeps the prefab's.")]
+    [SerializeField] private string displayName;
 
     /// <summary>Side the tower defends.</summary>
     public Faction Faction => faction;
@@ -40,7 +43,7 @@ public class StructureSpawner : MonoBehaviour
         {
             if (instance.TryGetComponent(out Structure structure))
             {
-                structure.Setup(faction, tier);
+                structure.Setup(faction, tier, displayName);
             }
         });
 

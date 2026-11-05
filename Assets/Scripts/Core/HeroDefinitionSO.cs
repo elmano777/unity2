@@ -45,6 +45,9 @@ public class HeroDefinitionSO : ScriptableObject
     [Tooltip("How fast the walk clip travels in metres per second at the model's original scale; the rival's walk is slowed or sped up to match their real speed.")]
     public float walkClipSpeed = 1.7f;
 
+    [Tooltip("Abilities in button order: the first on A, the second on X (RF-10).")]
+    public AbilitySO[] abilities;
+
     [Tooltip("Story lines shown together (one per line) on a black screen after confirming this hero, while entryClip plays.")]
     [TextArea]
     public string[] introLines;

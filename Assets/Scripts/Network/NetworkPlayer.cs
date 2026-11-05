@@ -72,6 +72,9 @@ public class NetworkPlayer : NetworkBehaviour
     /// <summary>Host = Amber end, anyone who joins = Sapphire end.</summary>
     public Faction Side => OwnerClientId == NetworkManager.ServerClientId ? Faction.Player : Faction.Enemy;
 
+    /// <summary>This machine's own player while a duel is running; null offline.</summary>
+    public static NetworkPlayer Local { get; private set; }
+
     public override void OnNetworkSpawn()
     {
         heroIndex.OnValueChanged += OnHeroChanged;
@@ -80,12 +83,14 @@ public class NetworkPlayer : NetworkBehaviour
 
         if (IsOwner)
         {
+            Local = this;
             rig = FindObjectOfType<OVRCameraRig>();
             visualRoot.SetActive(false);
             MoveRigToSpawn();
             ApplyLocalSide();
             ReplaceRigBody();
             HookOwnWeapons();
+            HookOwnAbilities();
             heroIndex.Value = FindHeroIndex();
         }
         else
@@ -96,8 +101,14 @@ public class NetworkPlayer : NetworkBehaviour
 
     public override void OnNetworkDespawn()
     {
+        if (Local == this)
+        {
+            Local = null;
+        }
+
         heroIndex.OnValueChanged -= OnHeroChanged;
         UnhookOwnWeapons();
+        UnhookOwnAbilities();
 
         if (bodyHealth != null)
         {
@@ -157,13 +168,18 @@ public class NetworkPlayer : NetworkBehaviour
 
         if (IsOwner)
         {
-            // Nobody shoots while down.
+            // Nobody shoots or casts while down.
             if (rig != null)
             {
                 foreach (Weapon weapon in rig.GetComponentsInChildren<Weapon>(true))
                 {
                     weapon.enabled = alive;
                 }
+            }
+
+            if (ownCaster != null)
+            {
+                ownCaster.enabled = alive;
             }
         }
         else if (visualRoot != null)
@@ -250,6 +266,92 @@ public class NetworkPlayer : NetworkBehaviour
         if (!IsOwner)
         {
             DrawRivalTracer(origin, end);
+        }
+    }
+
+    // ---- Abilities: the rival sees each cast; body upgrades go to the host ----
+
+    private AbilityCaster ownCaster;
+
+    private void HookOwnAbilities()
+    {
+        // The caster sits on the rig's root, above the OVRCameraRig.
+        ownCaster = FindObjectOfType<AbilityCaster>();
+
+        if (ownCaster != null)
+        {
+            ownCaster.Cast += OnOwnCast;
+        }
+    }
+
+    private void UnhookOwnAbilities()
+    {
+        if (ownCaster != null)
+        {
+            ownCaster.Cast -= OnOwnCast;
+        }
+    }
+
+    private void OnOwnCast(int index, Vector3 from, Vector3 to)
+    {
+        if (IsSpawned)
+        {
+            CastServerRpc(index, from, to);
+        }
+    }
+
+    [ServerRpc]
+    private void CastServerRpc(int index, Vector3 from, Vector3 to)
+    {
+        CastClientRpc(index, from, to);
+    }
+
+    [ClientRpc]
+    private void CastClientRpc(int index, Vector3 from, Vector3 to)
+    {
+        if (IsOwner || heroes == null || heroIndex.Value < 0 || heroIndex.Value >= heroes.Length)
+        {
+            return;
+        }
+
+        AbilitySO[] abilities = heroes[heroIndex.Value] != null ? heroes[heroIndex.Value].abilities : null;
+
+        if (abilities != null && index >= 0 && index < abilities.Length)
+        {
+            AbilityFx.Play(abilities[index], from, to);
+        }
+    }
+
+    /// <summary>
+    /// Asks the host to raise this player's health or armour after a shop purchase: the host owns
+    /// the body's hit points and publishes the new numbers to both screens.
+    /// </summary>
+    public void RequestBodyUpgrade(ItemStat stat, float amount)
+    {
+        if (IsSpawned && IsOwner)
+        {
+            BodyUpgradeServerRpc((int)stat, amount);
+        }
+    }
+
+    [ServerRpc]
+    private void BodyUpgradeServerRpc(int stat, float amount)
+    {
+        if (bodyHealth == null || float.IsNaN(amount))
+        {
+            return;
+        }
+
+        // A shop item is never worth more than this; anything bigger is a bad packet.
+        amount = Mathf.Clamp(amount, 0f, 200f);
+
+        if ((ItemStat)stat == ItemStat.MaxHealth)
+        {
+            bodyHealth.AddMaxHealth(amount);
+        }
+        else if ((ItemStat)stat == ItemStat.DamageReduction)
+        {
+            bodyHealth.AddDamageReduction(amount);
         }
     }
 

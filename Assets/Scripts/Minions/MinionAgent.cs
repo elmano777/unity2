@@ -635,6 +635,14 @@ public class MinionAgent : MonoBehaviour
                 continue;
             }
 
+            // A shielded objective can't be hurt yet; hitting it would stall the whole wave.
+            Structure structure = collider.GetComponentInParent<Structure>();
+
+            if (structure != null && structure.IsLocked)
+            {
+                continue;
+            }
+
             float distance = Vector3.SqrMagnitude(collider.transform.position - transform.position);
 
             if (distance < bestDistance)

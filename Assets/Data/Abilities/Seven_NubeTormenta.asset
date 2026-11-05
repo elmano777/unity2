@@ -1,0 +1,28 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5e2a3cb31d7644c47a66501c181ae508, type: 3}
+  m_Name: Seven_NubeTormenta
+  m_EditorClassIdentifier: 
+  abilityName: Nube de tormenta
+  description: Descarga rayos sobre todo lo que te rodea.
+  icon: {fileID: 0}
+  castClip: {fileID: 8300000, guid: d8bf536ca267f454aa92d9edcca1d945, type: 3}
+  impactClip: {fileID: 8300000, guid: 11a8f94743b5ddf40968920c7c9f38fe, type: 3}
+  effectPrefab: {fileID: 0}
+  tint: {r: 0.6, g: 0.55, b: 1, a: 1}
+  cooldown: 20
+  duration: 0
+  travelTime: 0
+  shape: 1
+  damage: 90
+  radius: 6
+  castRange: 0
