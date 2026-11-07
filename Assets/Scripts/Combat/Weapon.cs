@@ -199,18 +199,10 @@ public class Weapon : MonoBehaviour
         Vector3 endPoint = origin + direction * range;
 
         // QueryTriggerInteraction.Collide so soul pickups can use trigger colliders and still be shot.
-        SoulPickup soulHit = null;
-
         if (Physics.Raycast(origin, direction, out RaycastHit hit, range, hitMask, QueryTriggerInteraction.Collide))
         {
             endPoint = hit.point;
-            soulHit = hit.collider.GetComponentInParent<SoulPickup>();
             ApplyHit(hit, direction);
-        }
-
-        if (soulHit == null)
-        {
-            CollectSoulThroughMinions(origin, direction);
         }
 
         PlayFeedback(origin, endPoint);
@@ -219,45 +211,6 @@ public class Weapon : MonoBehaviour
 
         return true;
     }
-
-    /// <summary>
-    /// Minions don't shield souls: a soul drops among the wave and the minions behind walk through it,
-    /// so a shot that passes a soul on its way into a minion (or a rival) also collects it. Walls,
-    /// floor and structures still block it.
-    /// </summary>
-    private void CollectSoulThroughMinions(Vector3 origin, Vector3 direction)
-    {
-        int bodies = LayerMask.GetMask("Minion", "Rival");
-        int count = Physics.RaycastNonAlloc(origin, direction, soulRayHits, range, hitMask, QueryTriggerInteraction.Collide);
-        System.Array.Sort(soulRayHits, 0, count, HitDistanceComparer);
-
-        for (int i = 0; i < count; i++)
-        {
-            Collider other = soulRayHits[i].collider;
-            SoulPickup soul = other.GetComponentInParent<SoulPickup>();
-
-            if (soul != null)
-            {
-                if (soul.IsAlive)
-                {
-                    soul.TakeDamage(new DamageInfo(damage, owner, gameObject).AtImpact(soulRayHits[i].point, direction));
-                }
-
-                return;
-            }
-
-            // A body the bullet goes past (or a trigger, like a dying minion's), keep looking; anything else stops it.
-            if ((bodies & (1 << other.gameObject.layer)) == 0 && !other.isTrigger)
-            {
-                return;
-            }
-        }
-    }
-
-    private static readonly System.Collections.Generic.IComparer<RaycastHit> HitDistanceComparer =
-        System.Collections.Generic.Comparer<RaycastHit>.Create((a, b) => a.distance.CompareTo(b.distance));
-
-    private readonly RaycastHit[] soulRayHits = new RaycastHit[16];
 
     private void ApplyHit(RaycastHit hit, Vector3 direction)
     {

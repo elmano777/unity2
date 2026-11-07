@@ -18,16 +18,6 @@ public class SoulPickup : MonoBehaviour, IDamageable
     [Tooltip("Seconds of shrinking before it disappears, as a warning that it is about to expire.")]
     [SerializeField] private float fadeDuration = 1.5f;
 
-    [Header("Aiming")]
-    [Tooltip("Radius in metres of the sphere a shot has to hit. Larger than the visible orb, which is small and far away in VR.")]
-    [SerializeField] private float hitRadius = 0.35f;
-
-    [Tooltip("Metres the soul rises after it drops, to float over the heads of the minions walking through it, which would otherwise take the shots.")]
-    [SerializeField] private float riseHeight = 2f;
-
-    [Tooltip("Seconds the soul takes to rise.")]
-    [SerializeField] private float riseSeconds = 0.8f;
-
     [Header("Motion")]
     [Tooltip("How far the soul bobs up and down, in metres.")]
     [SerializeField] private float bobAmplitude = 0.12f;
@@ -61,18 +51,6 @@ public class SoulPickup : MonoBehaviour, IDamageable
         anchor = transform.position;
         baseScale = transform.localScale;
         network = GetComponent<NetworkSoul>();
-
-        // Grow only the shootable sphere; the orb keeps its size.
-        if (TryGetComponent(out SphereCollider sphere))
-        {
-            Vector3 scale = transform.lossyScale;
-            float largest = Mathf.Max(Mathf.Abs(scale.x), Mathf.Abs(scale.y), Mathf.Abs(scale.z));
-
-            if (largest > 0f)
-            {
-                sphere.radius = Mathf.Max(sphere.radius, hitRadius / largest);
-            }
-        }
     }
 
     /// <summary>Re-reads where the soul floats, once the network has placed it.</summary>
@@ -96,11 +74,9 @@ public class SoulPickup : MonoBehaviour, IDamageable
 
         age += Time.deltaTime;
 
-        // Rise out of the body (eased), then bob and spin so it reads as a pickup from across the lane.
-        // Both screens compute this from the same drop point and age, so it needs no syncing.
-        float rise = riseSeconds > 0f ? 1f - Mathf.Pow(1f - Mathf.Clamp01(age / riseSeconds), 3f) : 1f;
+        // Bob and spin so it reads as a pickup from across the lane.
         float offset = Mathf.Sin(age * bobSpeed * Mathf.PI) * bobAmplitude;
-        transform.position = anchor + Vector3.up * (rise * riseHeight + offset);
+        transform.position = anchor + Vector3.up * offset;
         transform.Rotate(Vector3.up, spinDegreesPerSecond * Time.deltaTime, Space.World);
 
         float remaining = lifetime - age;
