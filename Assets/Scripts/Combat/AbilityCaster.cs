@@ -99,6 +99,15 @@ public class AbilityCaster : MonoBehaviour
         return index >= 0 && index < readyAt.Length ? Mathf.Max(0f, readyAt[index] - Time.time) : 0f;
     }
 
+    /// <summary>Makes every ability ready now (editor demo keys).</summary>
+    public void ResetCooldowns()
+    {
+        for (int i = 0; i < readyAt.Length; i++)
+        {
+            readyAt[i] = 0f;
+        }
+    }
+
     /// <summary>
     /// Casts ability <paramref name="index"/> if it is off cooldown. Public so the tutorial and tests
     /// can cast without the controller.

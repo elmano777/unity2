@@ -437,7 +437,8 @@ public static class DeadlockShop
             new Vector2(0.22f, 0.08f), FontStyles.Bold);
         DeadlockMenuPolish.Glow(priceText);
 
-        TextMeshPro tierText = InkText("Tier", b, new Vector3(left + 0.66f, top - 0.002f, -0.014f), $"NIVEL {tier}", 0.42f,
+        // Just above the block's top edge, beside the tag, so the border line doesn't strike it through.
+        TextMeshPro tierText = InkText("Tier", b, new Vector3(left + 0.66f, top + 0.03f, -0.014f), $"NIVEL {tier}", 0.42f,
             new Vector2(0.5f, 0.06f), FontStyles.Bold);
         tierText.alignment = TextAlignmentOptions.Left;
         tierText.characterSpacing = 10f;
