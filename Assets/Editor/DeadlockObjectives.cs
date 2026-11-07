@@ -34,7 +34,7 @@ public static class DeadlockObjectives
     private const string ShotClipPath = "Assets/Audio/Combat/Shot.wav";
     private const string HitClipPath = "Assets/Audio/Combat/Hit.wav";
 
-    private static Material shieldMaterial, barBack, barFill, effectMaterial, standMaterial, plaqueMaterial, trimMaterial;
+    private static Material shieldMaterial, barBack, barFill, effectMaterial;
 
     [MenuItem("Deadlock/Setup/27 Objectives, Abilities and Shop (Avance 4)")]
     public static void Run()
@@ -83,10 +83,6 @@ public static class DeadlockObjectives
         barBack.SetColor("_BaseColor", new Color(0.05f, 0.05f, 0.06f, 1f));
         barFill = LoadOrCreate("Bar_Objective_Fill", "Universal Render Pipeline/Unlit");
         barFill.SetColor("_BaseColor", new Color(1f, 0.82f, 0.4f, 1f));
-
-        standMaterial = DeadlockSceneKit.Lit("Shop_Stand", new Color(0.16f, 0.12f, 0.1f), 0.35f, 0.2f);
-        plaqueMaterial = DeadlockSceneKit.Lit("Shop_Plaque", new Color(0.05f, 0.05f, 0.07f), 0.6f, 0.4f);
-        trimMaterial = DeadlockSceneKit.Glow("Shop_Trim", new Color(1f, 0.75f, 0.3f, 1f));
 
         foreach (Material m in new[] { shieldMaterial, effectMaterial, barBack, barFill })
         {
@@ -516,15 +512,15 @@ public static class DeadlockObjectives
             }
         }
 
-        ShopKiosk amberShop = BuildShop("Shop_Amber", Faction.Player, new Vector3(5f, 0f, -73.5f), new Vector3(0f, 0f, -76f), items);
-        BuildShop("Shop_Sapphire", Faction.Enemy, new Vector3(-5f, 0f, 73.5f), new Vector3(0f, 0f, 76f), items);
+        // The shop boards are step 28's; building them here keeps a re-run of 27 complete.
+        DeadlockShop.BuildInOpenScene();
 
         SetUpRig(seven);
 
         EditorSceneManager.MarkSceneDirty(scene);
         EditorSceneManager.SaveScene(scene);
 
-        Debug.Log($"[Deadlock Objectives] {spawners.childCount} objective spawners, shops at {amberShop.transform.position} and its mirror.");
+        Debug.Log($"[Deadlock Objectives] {spawners.childCount} objective spawners and a shop board in each base.");
     }
 
     private static IEnumerable<Transform> AllTransforms()
@@ -575,77 +571,6 @@ public static class DeadlockObjectives
         var so = new SerializedObject(visual);
         so.FindProperty("faction").enumValueIndex = (int)side;
         so.ApplyModifiedPropertiesWithoutUndo();
-    }
-
-    /// <summary>
-    /// A shop stand in a base, turned towards the player's spawn. Its forward points away from the
-    /// player (like the health bars), so the plaques and text face the player on the -Z side.
-    /// </summary>
-    private static ShopKiosk BuildShop(string name, Faction side, Vector3 position, Vector3 lookFrom, ShopItemSO[] items)
-    {
-        var root = new GameObject(name);
-        Vector3 away = position - lookFrom;
-        away.y = 0f;
-        root.transform.SetPositionAndRotation(position, Quaternion.LookRotation(away));
-
-        int ground = LayerMask.NameToLayer(DeadlockSetupTools.GroundLayer);
-        int soul = LayerMask.NameToLayer(DeadlockSetupTools.SoulLayer);
-
-        GameObject stand = DeadlockSceneKit.Box("Stand", root.transform, new Vector3(0f, 0.45f, 0f), new Vector3(2.2f, 0.9f, 0.7f), standMaterial);
-        GameObject panel = DeadlockSceneKit.Box("Panel", root.transform, new Vector3(0f, 1.95f, 0.25f), new Vector3(2.3f, 2.5f, 0.12f), standMaterial);
-        stand.layer = panel.layer = ground;
-
-        DeadlockSceneKit.Box("TrimTop", root.transform, new Vector3(0f, 3.22f, 0.18f), new Vector3(2.4f, 0.05f, 0.04f), trimMaterial, collider: false);
-        DeadlockSceneKit.Box("TrimBottom", root.transform, new Vector3(0f, 0.92f, -0.32f), new Vector3(2.3f, 0.04f, 0.04f), trimMaterial, collider: false);
-
-        TextMeshPro title = DeadlockSceneKit.Text("Title", root.transform, new Vector3(0f, 3.45f, 0.18f), "TIENDA", 3f,
-            new Color(1f, 0.85f, 0.45f), new Vector2(2.4f, 0.4f), FontStyles.Bold);
-        DeadlockMenuPolish.Glow(title);
-
-        ShopKiosk kiosk = root.AddComponent<ShopKiosk>();
-        AudioSource audio = root.AddComponent<AudioSource>();
-        audio.playOnAwake = false;
-        audio.spatialBlend = 1f;
-        audio.maxDistance = 20f;
-
-        var labels = new TMP_Text[items.Length];
-        const float top = 2.85f, spacing = 0.42f;
-
-        for (int i = 0; i < items.Length; i++)
-        {
-            float y = top - i * spacing;
-            GameObject plaque = DeadlockSceneKit.Box($"Plaque_{i}", root.transform, new Vector3(0f, y, 0.13f), new Vector3(2.0f, 0.36f, 0.06f), plaqueMaterial);
-            plaque.layer = soul;
-
-            ShopPlaque buy = plaque.AddComponent<ShopPlaque>();
-            var plaqueSo = new SerializedObject(buy);
-            plaqueSo.FindProperty("kiosk").objectReferenceValue = kiosk;
-            plaqueSo.FindProperty("itemIndex").intValue = i;
-            plaqueSo.ApplyModifiedPropertiesWithoutUndo();
-
-            TextMeshPro label = DeadlockSceneKit.Text("Label", plaque.transform, new Vector3(0f, 0f, -0.035f), items[i].itemName, 0.95f,
-                new Color(1f, 0.85f, 0.45f), new Vector2(1.9f, 0.34f));
-            label.lineSpacing = -18f;
-            DeadlockMenuPolish.Glow(label);
-            labels[i] = label;
-        }
-
-        TextMeshPro status = DeadlockSceneKit.Text("Status", root.transform, new Vector3(0f, 0.6f, -0.36f), "", 0.8f,
-            new Color(0.85f, 1f, 0.9f), new Vector2(2.1f, 0.3f));
-        DeadlockMenuPolish.Glow(status);
-
-        DeadlockSceneKit.PointLight("Light", root.transform, new Vector3(0f, 2.6f, -1.2f), new Color(1f, 0.8f, 0.5f), 1.2f, 5f);
-
-        var so = new SerializedObject(kiosk);
-        so.FindProperty("faction").enumValueIndex = (int)side;
-        SetArray(so.FindProperty("items"), items);
-        SetArray(so.FindProperty("itemLabels"), labels);
-        so.FindProperty("statusLabel").objectReferenceValue = status;
-        so.FindProperty("audioSource").objectReferenceValue = audio;
-        so.FindProperty("buyClip").objectReferenceValue = AssetDatabase.LoadAssetAtPath<AudioClip>(HitClipPath);
-        so.ApplyModifiedPropertiesWithoutUndo();
-
-        return kiosk;
     }
 
     /// <summary>Abilities, upgrades and the wrist display on the player's rig; effects and the result on Managers.</summary>

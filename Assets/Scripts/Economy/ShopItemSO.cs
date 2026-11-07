@@ -10,11 +10,18 @@ public enum ItemStat
     DamageReduction = 4,
 }
 
+/// <summary>Shop tab an item is listed under, each with its own colour on the <see cref="ShopBoard"/>.</summary>
+public enum ShopCategory
+{
+    Weapon = 0,
+    Vitality = 1,
+    Spirit = 2,
+}
+
 /// <summary>
-/// One purchasable upgrade, bought with souls (RF-11). Data only for now — the shop kiosk and the
-/// component that applies these live in a later deliverable; this exists so the stat events and
-/// the hero/minion data all sit together and the balance can be filled in during playtests.
-/// Create via Assets > Create > Deadlock > Shop Item.
+/// One purchasable upgrade, bought with souls (RF-11) on the <see cref="ShopBoard"/>, which lists it
+/// under its <see cref="category"/> tab in the block of its <see cref="tier"/>; <see cref="PlayerUpgrades"/>
+/// applies it. Create via Assets > Create > Deadlock > Shop Item.
 /// </summary>
 [CreateAssetMenu(fileName = "NewShopItem", menuName = "Deadlock/Shop Item", order = 20)]
 public class ShopItemSO : ScriptableObject
@@ -27,6 +34,13 @@ public class ShopItemSO : ScriptableObject
     public string description;
 
     public Sprite icon;
+
+    [Tooltip("Tab of the shop board this item is listed under.")]
+    public ShopCategory category = ShopCategory.Weapon;
+
+    [Tooltip("Block of its tab, 1 for the cheapest. Items of a tab are grouped by tier.")]
+    [Min(1)]
+    public int tier = 1;
 
     [Header("Cost")]
     [Tooltip("Souls charged when bought.")]

@@ -221,7 +221,7 @@ public class MissionGuide : MonoBehaviour
                 break;
 
             case Step.DestroyTower:
-                text = "MISIÓN 7/7\nAvanza y destruye la torre Guardián.\nCompra mejoras en la tienda de tu base";
+                text = "MISIÓN 7/7\nAvanza y destruye la torre Guardián.\nCompra mejoras en la tienda de tu base:\ndispara dos veces a un objeto";
                 break;
 
             default:

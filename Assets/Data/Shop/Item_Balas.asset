@@ -14,7 +14,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   itemName: Balas potenciadas
   description: "+5 de da\xF1o por bala"
-  icon: {fileID: 0}
+  icon: {fileID: 21300000, guid: 403d4539e7a7cec45a5a1fadc9699b23, type: 3}
+  category: 0
+  tier: 1
   cost: 250
   maxStacks: 3
   stat: 1

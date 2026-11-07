@@ -62,6 +62,10 @@ public static class DeadlockMenuPolish
         if (font == null || font != TMP_Settings.defaultFontAsset) return;
 
         Color c = text.color;
+
+        // Dark ink (the shop board's paper) is printed, not lit: a glow would only blur it.
+        if (c.maxColorComponent < 0.4f) return;
+
         bool warm = c.r > c.g + 0.1f;
         text.fontSharedMaterial = Material(font, warm);
         EditorUtility.SetDirty(text);

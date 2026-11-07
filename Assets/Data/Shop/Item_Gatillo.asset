@@ -14,7 +14,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   itemName: "Gatillo r\xE1pido"
   description: "Disparas un 15 % m\xE1s r\xE1pido"
-  icon: {fileID: 0}
+  icon: {fileID: 21300000, guid: 7ce1c3c3edc8fa34b92fa088aa500b72, type: 3}
+  category: 0
+  tier: 2
   cost: 300
   maxStacks: 2
   stat: 2

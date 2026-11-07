@@ -98,8 +98,9 @@ Pasos de editor nuevos: `Deadlock/Setup/18` (red de minions, almas, torre y cuer
 
 ### Tienda (RF-11)
 
-- Un puesto en cada base, junto al punto de aparición. **Se compra disparándole al objeto**, el mismo gesto que recoge almas, sin láser ni menús en medio de la pelea (`ShopKiosk`, `ShopPlaque`).
-- Cinco objetos (`Assets/Data/Shop`): *Vitalidad extra* (+75 de vida, 200), *Balas potenciadas* (+5 de daño, 250), *Gatillo rápido* (15 % más cadencia, 300), *Botas de carrera* (20 % más velocidad, 150) y *Coraza* (−4 por golpe, 250), con un máximo de 2 o 3 de cada uno. Cada placa muestra precio, efecto y cuántos tienes; se pone gris si no alcanza y avisa cuántas almas faltan. La tienda del rival no te vende.
+- Un tablero en cada base, junto al punto de aparición, con la misma disposición que la tienda de *Deadlock* pero con arte propio: pestañas de categoría a un costado (Arma y Vitalidad), un bloque por nivel con su precio, un panel con el detalle del objeto elegido y el héroe del jugador al lado (`ShopBoard`, `ShopTab`, `ShopCard`, `ShopHeroStand`; paso `Deadlock/Setup/28`).
+- **Se compra disparando**, el mismo gesto que recoge almas, sin láser ni menús en medio de la pelea: un disparo a una pestaña la abre, el primer disparo a un objeto lo selecciona y muestra qué hace, y un segundo disparo lo compra. Mantener el gatillo no compra solo.
+- Cinco objetos (`Assets/Data/Shop`): *Vitalidad extra* (+75 de vida, 200), *Balas potenciadas* (+5 de daño, 250), *Gatillo rápido* (15 % más cadencia, 300), *Botas de carrera* (20 % más velocidad, 150) y *Coraza* (−4 por golpe, 250), con un máximo de 2 o 3 de cada uno. Cada carta muestra cuántos tienes, se pone gris si no alcanza y el panel avisa cuántas almas faltan. La tienda del rival está sellada.
 - La vida y la coraza las aplica el anfitrión (`NetworkPlayer.RequestBodyUpgrade`); el daño, la cadencia y la velocidad son locales.
 
 ### Mi misión
@@ -111,7 +112,7 @@ Pasos de editor nuevos: `Deadlock/Setup/18` (red de minions, almas, torre y cuer
 - Verificado en Play sin visor (práctica): la cadena rival aparece completa con un solo objetivo sin escudo; golpear al patrón con escudo no le quita vida; destruyendo en orden se van liberando Walker → Guardianes de base → Santuarios → Patrón y al caer el patrón la partida pasa a victoria con su cartel. Habilidad con enfriamiento, compras (daño 20 → 25, vida 300 → 375, tope de objetos) y tienda del rival que rechaza.
 - Pendiente: probarlo online entre dos máquinas, con el Quest (lectura de la muñeca, tiro a las placas) y equilibrar precios y vidas con partidas reales.
 
-Paso de editor nuevo: `Deadlock/Setup/27` (objetivos, habilidades, tienda y muñeca).
+Pasos de editor nuevos: `Deadlock/Setup/27` (objetivos, habilidades, tienda y muñeca) y `28` (tablero de la tienda).
 
 ## Próximos avances
 
@@ -125,6 +126,6 @@ Paso de editor nuevo: `Deadlock/Setup/27` (objetivos, habilidades, tienda y muñ
 2. Conectar el Quest por Quest Link.
 3. Darle Play: siempre arranca en `Intro` (se desactiva con `Deadlock/Play From Title Screen` para jugar la escena abierta).
 
-Las escenas se arman con los scripts del menú `Deadlock/Setup/1..27`, no a mano (el orden y qué hay que re-correr está en `CLAUDE.md`).
+Las escenas se arman con los scripts del menú `Deadlock/Setup/1..28`, no a mano (el orden y qué hay que re-correr está en `CLAUDE.md`).
 
 **Para jugar online entre dos visores:** los dos deben instalar **el mismo APK**, compilado desde el mismo commit. Un APK de otra versión no puede entrar a la sala.
