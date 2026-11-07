@@ -7,6 +7,11 @@ using UnityEngine;
 /// the next rival objective (RF-07, RF-10, RF-12). Look at the left hand to read it, like a watch,
 /// instead of having numbers glued to the view.
 /// </summary>
+/// <remarks>
+/// It doesn't stay in the hand the whole ritual: it shows for <see cref="visibleSeconds"/> when the
+/// Lane starts and hides, then comes back for the same time whenever the souls change, an ability is
+/// cast or an ability is ready again. Only the renderers are switched, so this keeps listening.
+/// </remarks>
 public class WristHud : MonoBehaviour
 {
     [SerializeField] private TMP_Text label;
@@ -15,11 +20,18 @@ public class WristHud : MonoBehaviour
     [Tooltip("Seconds between text rebuilds. The numbers don't need to change every frame.")]
     [SerializeField] private float refreshInterval = 0.2f;
 
+    [Tooltip("Seconds the display stays up at the start and after each change before it hides.")]
+    [SerializeField] private float visibleSeconds = 5f;
+
     [SerializeField] private Color readyColor = new Color(0.55f, 1f, 0.65f, 1f);
     [SerializeField] private Color coolingColor = new Color(0.65f, 0.65f, 0.7f, 1f);
 
     private readonly StringBuilder text = new StringBuilder(256);
     private float nextRefresh;
+    private float hideAt;
+    private bool shown = true;
+    private Renderer[] renderers = System.Array.Empty<Renderer>();
+    private bool[] wasCooling = System.Array.Empty<bool>();
 
     private void Awake()
     {
@@ -27,11 +39,63 @@ public class WristHud : MonoBehaviour
         {
             caster = FindObjectOfType<AbilityCaster>();
         }
+
+        renderers = GetComponentsInChildren<Renderer>(true);
+    }
+
+    private void OnEnable()
+    {
+        GameEvents.WalletChanged += OnWalletChanged;
+        GameEvents.AbilityUsed += OnAbilityUsed;
+        Show();
+    }
+
+    private void OnDisable()
+    {
+        GameEvents.WalletChanged -= OnWalletChanged;
+        GameEvents.AbilityUsed -= OnAbilityUsed;
+    }
+
+    private void OnWalletChanged(int souls) => Show();
+
+    private void OnAbilityUsed(AbilitySO ability) => Show();
+
+    /// <summary>Brings the display up for <see cref="visibleSeconds"/> from now.</summary>
+    public void Show()
+    {
+        hideAt = Time.time + visibleSeconds;
+        nextRefresh = 0f;
+        SetShown(true);
+    }
+
+    private void SetShown(bool value)
+    {
+        if (shown == value)
+        {
+            return;
+        }
+
+        shown = value;
+
+        foreach (Renderer renderer in renderers)
+        {
+            if (renderer != null)
+            {
+                renderer.enabled = value;
+            }
+        }
     }
 
     private void Update()
     {
-        if (label == null || Time.time < nextRefresh)
+        WatchCooldowns();
+
+        if (shown && Time.time >= hideAt)
+        {
+            SetShown(false);
+        }
+
+        if (!shown || label == null || Time.time < nextRefresh)
         {
             return;
         }
@@ -67,5 +131,33 @@ public class WristHud : MonoBehaviour
         text.Append("<size=80%>Objetivo: ").Append(next != null ? next.DisplayName : "—").Append("</size>");
 
         label.text = text.ToString();
+    }
+
+    /// <summary>Shows the display again when an ability comes off cooldown.</summary>
+    private void WatchCooldowns()
+    {
+        if (caster == null)
+        {
+            return;
+        }
+
+        int count = caster.Abilities.Count;
+
+        if (wasCooling.Length != count)
+        {
+            wasCooling = new bool[count];
+        }
+
+        for (int i = 0; i < count; i++)
+        {
+            bool cooling = caster.CooldownRemaining(i) > 0f;
+
+            if (wasCooling[i] && !cooling)
+            {
+                Show();
+            }
+
+            wasCooling[i] = cooling;
+        }
     }
 }
