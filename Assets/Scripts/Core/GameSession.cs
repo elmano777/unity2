@@ -36,11 +36,35 @@ public class GameSession : MonoBehaviour
     /// </summary>
     public bool IsPracticeRun { get; set; }
 
+    /// <summary>True when nothing but the transform shares this object.</summary>
+    private bool IsAlone => GetComponents<Component>().Length <= 2;
+
     private void Awake()
     {
+        // In the Lane this sits on "Managers" next to MatchManager, PlayerWallet, AbilityFx... Coming
+        // from HeroSelect the session already exists, and destroying the whole object took the wallet
+        // and the ability effects with it. Only the extra component goes.
         if (Instance != null && Instance != this)
         {
-            Destroy(gameObject);
+            if (IsAlone)
+            {
+                Destroy(gameObject);
+            }
+            else
+            {
+                Destroy(this);
+            }
+
+            return;
+        }
+
+        // Playing the Lane straight: persisting this object would carry the Lane's managers into the
+        // next scenes. Move to an object of its own first (it has no serialized fields to copy).
+        if (!IsAlone)
+        {
+            var holder = new GameObject(nameof(GameSession));
+            holder.AddComponent<GameSession>();
+            Destroy(this);
             return;
         }
 
