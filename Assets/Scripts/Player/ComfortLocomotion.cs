@@ -18,7 +18,8 @@ public class ComfortLocomotion : MonoBehaviour
     [Tooltip("Head the movement direction follows. Found on the OVRCameraRig when left empty.")]
     [SerializeField] private Transform head;
 
-    [SerializeField] private float moveSpeed = 2.5f;
+    [Tooltip("Walking speed in m/s at full stick. 2.5 felt slow across the expanded map; the shop's boots multiply this.")]
+    [SerializeField] private float moveSpeed = 3.75f;
 
     [Tooltip("Degrees per snap turn. Snap rather than smooth turning: smooth yaw is the worst for comfort.")]
     [SerializeField] private float snapAngle = 45f;

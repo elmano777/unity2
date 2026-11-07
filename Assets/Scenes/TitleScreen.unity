@@ -34370,7 +34370,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   rig: {fileID: 1894322826}
   head: {fileID: 1371955934}
-  moveSpeed: 2.5
+  moveSpeed: 3.75
   snapAngle: 45
   snapThreshold: 0.7
   snapRelease: 0.3
