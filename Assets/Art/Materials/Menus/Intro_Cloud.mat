@@ -29,5 +29,5 @@ Material:
     - _Pulse: 0
     - _Radial: 1
     m_Colors:
-    - _Color: {r: 1, g: 0.62, b: 0.5, a: 0.22}
+    - _Color: {r: 0.35, g: 0.42, b: 0.62, a: 0.2}
   m_BuildTextureStacks: []

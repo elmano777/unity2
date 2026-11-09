@@ -219,11 +219,18 @@ public class Weapon : MonoBehaviour
 
         if (target != null && target.IsAlive)
         {
-            DamageInfo info = new DamageInfo(damage, owner, gameObject)
+            // The shop's passive bonuses (close, long range, minions) and the weapon investment apply here.
+            float amount = PlayerUpgrades.Instance != null
+                ? PlayerUpgrades.Instance.WeaponDamage(damage, hit.distance, hit.collider)
+                : damage;
+
+            DamageInfo info = new DamageInfo(amount, owner, gameObject)
                 .AtImpact(hit.point, direction);
 
             target.TakeDamage(info);
         }
+
+        PlayImpactSound(hit, target);
 
         if (impactEffect != null)
         {
@@ -232,11 +239,67 @@ public class Weapon : MonoBehaviour
         }
     }
 
+    private AudioClip[] heroFire = System.Array.Empty<AudioClip>();
+    private string heroFireFor;
+
+    /// <summary>
+    /// The shot of the hero in use: files in Resources/Weapons/&lt;hero name&gt; (a few variants, one at random each time).
+    /// The clip set on the weapon stays as the fallback when there are none.
+    /// </summary>
+    private AudioClip PickFireClip()
+    {
+        HeroDefinitionSO hero = GameSession.Instance != null ? GameSession.Instance.SelectedHero : null;
+        string name = hero != null ? hero.heroName : null;
+
+        if (name != heroFireFor)
+        {
+            heroFireFor = name;
+            heroFire = string.IsNullOrEmpty(name) ? System.Array.Empty<AudioClip>() : Resources.LoadAll<AudioClip>("Weapons/" + name);
+        }
+
+        return heroFire.Length > 0 ? heroFire[Random.Range(0, heroFire.Length)] : fireClip;
+    }
+
+    private static float nextImpactSound;
+
+    /// <summary>
+    /// What the bullet hit decides how it sounds: a body, a structure's metal, a shielded structure
+    /// (which takes no damage yet, so the player hears why) or plain ground and walls. Souls keep their own sound.
+    /// </summary>
+    private static void PlayImpactSound(RaycastHit hit, IDamageable target)
+    {
+        if (Time.time < nextImpactSound || target is SoulPickup)
+        {
+            return;
+        }
+
+        nextImpactSound = Time.time + 0.05f;
+        Structure structure = hit.collider.GetComponentInParent<Structure>();
+        string cue;
+
+        if (structure != null)
+        {
+            cue = structure.IsLocked ? "impact_shield" : "impact_metal";
+        }
+        else if (target != null)
+        {
+            cue = "impact_flesh";
+        }
+        else
+        {
+            cue = "impact_concrete";
+        }
+
+        ExperienceCues.PlayAt(cue, hit.point, 0.5f);
+    }
+
     private void PlayFeedback(Vector3 origin, Vector3 endPoint)
     {
-        if (audioSource != null && fireClip != null)
+        AudioClip shot = PickFireClip();
+
+        if (audioSource != null && shot != null)
         {
-            audioSource.PlayOneShot(fireClip);
+            audioSource.PlayOneShot(shot);
         }
 
         if (muzzleFlash != null)

@@ -167,6 +167,9 @@ public class WaveSpawner : MonoBehaviour
 
     private IEnumerator SpawnWave()
     {
+        // A soft sound at the spawn so a new wave can be heard leaving the base.
+        ExperienceCues.PlayAt("wave_spawn", spawnPoint != null ? spawnPoint.position : transform.position, 0.5f);
+
         foreach (WaveEntry entry in composition)
         {
             if (entry == null || entry.definition == null)

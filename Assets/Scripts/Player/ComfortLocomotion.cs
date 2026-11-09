@@ -44,6 +44,9 @@ public class ComfortLocomotion : MonoBehaviour
     /// <summary>0 when standing still, 1 at full stick speed. Read by the vignette.</summary>
     public float Speed01 { get; private set; }
 
+    /// <summary>Set to 1 while something else moves the player (the zipline), so the vignette closes in too.</summary>
+    public float ExternalMotion01 { get; set; }
+
     /// <summary>Multiplies the walking speed. Raised by the shop's speed item.</summary>
     public float SpeedMultiplier { get; set; } = 1f;
 

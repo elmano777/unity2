@@ -14,9 +14,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   itemName: Vitalidad extra
   description: "+75 de vida m\xE1xima"
-  icon: {fileID: 21300000, guid: 06ae7f95efeef954e80aa735848ba938, type: 3}
+  icon: {fileID: 21300000, guid: f4ffabad846942e9b8af7b0d44caa5b1, type: 3}
   category: 1
-  tier: 2
+  tier: 1
   cost: 200
   maxStacks: 3
   stat: 0

@@ -235,6 +235,74 @@ public static class DeadlockShopIcons
         });
     }
 
+    /// <summary>A bullseye: more damage up close.</summary>
+    public static float Bullseye(Vector2 p)
+    {
+        Vector2 c = new Vector2(0.5f, 0.5f);
+        return Mathf.Min(Mathf.Min(Mathf.Abs(Circle(p, c, 0.3f)) - 0.035f, Mathf.Abs(Circle(p, c, 0.16f)) - 0.035f), Circle(p, c, 0.05f));
+    }
+
+    /// <summary>A small skull: more damage to minions.</summary>
+    public static float Skull(Vector2 p)
+    {
+        float head = Circle(p, new Vector2(0.5f, 0.58f), 0.24f);
+        float jaw = Box(p, new Vector2(0.5f, 0.3f), new Vector2(0.14f, 0.09f), 0.02f);
+        float eyes = Mathf.Min(Circle(p, new Vector2(0.4f, 0.58f), 0.06f), Circle(p, new Vector2(0.6f, 0.58f), 0.06f));
+        return Mathf.Max(Mathf.Min(head, jaw), -eyes);
+    }
+
+    /// <summary>A scope with long ticks: more damage far away.</summary>
+    public static float Scope(Vector2 p)
+    {
+        Vector2 c = new Vector2(0.5f, 0.5f);
+        float ring = Mathf.Abs(Circle(p, c, 0.13f)) - 0.03f;
+        float ticks = Mathf.Min(
+            Mathf.Min(Segment(p, new Vector2(0.5f, 0.06f), new Vector2(0.5f, 0.34f), 0.025f), Segment(p, new Vector2(0.5f, 0.66f), new Vector2(0.5f, 0.94f), 0.025f)),
+            Mathf.Min(Segment(p, new Vector2(0.06f, 0.5f), new Vector2(0.34f, 0.5f), 0.025f), Segment(p, new Vector2(0.66f, 0.5f), new Vector2(0.94f, 0.5f), 0.025f)));
+        return Mathf.Min(ring, ticks);
+    }
+
+    /// <summary>Three widening rings: a bigger area.</summary>
+    public static float Waves(Vector2 p)
+    {
+        Vector2 c = new Vector2(0.5f, 0.5f);
+        float rings = Mathf.Min(Mathf.Min(Mathf.Abs(Circle(p, c, 0.12f)) - 0.03f, Mathf.Abs(Circle(p, c, 0.25f)) - 0.03f), Mathf.Abs(Circle(p, c, 0.38f)) - 0.03f);
+        return Mathf.Min(rings, Circle(p, c, 0.04f));
+    }
+
+    /// <summary>Two stars, a big and a small: stronger abilities.</summary>
+    public static float StarPair(Vector2 p)
+    {
+        float big = Star(new Vector2((p.x - 0.5f) / 0.8f + 0.5f - 0.1f, (p.y - 0.5f) / 0.8f + 0.5f + 0.06f));
+        float small = Star(new Vector2((p.x - 0.5f) / 0.4f + 0.5f - 0.5f, (p.y - 0.5f) / 0.4f + 0.5f - 0.45f)) * 0.4f;
+        return Mathf.Min(big * 0.8f, small);
+    }
+
+    /// <summary>An hourglass: shorter cooldowns.</summary>
+    public static float Hourglass(Vector2 p)
+    {
+        float top = Polygon(p, new[] { new Vector2(0.27f, 0.82f), new Vector2(0.73f, 0.82f), new Vector2(0.5f, 0.5f) });
+        float bottom = Polygon(p, new[] { new Vector2(0.27f, 0.18f), new Vector2(0.73f, 0.18f), new Vector2(0.5f, 0.5f) });
+        float caps = Mathf.Min(Box(p, new Vector2(0.5f, 0.84f), new Vector2(0.28f, 0.025f), 0.01f), Box(p, new Vector2(0.5f, 0.16f), new Vector2(0.28f, 0.025f), 0.01f));
+        return Mathf.Min(Mathf.Min(top, bottom), caps);
+    }
+
+    /// <summary>A cross inside a ring with an arrow tip: health that comes back over time.</summary>
+    public static float Regen(Vector2 p)
+    {
+        Vector2 c = new Vector2(0.5f, 0.5f);
+        float ring = Mathf.Abs(Circle(p, c, 0.32f)) - 0.035f;
+        float plus = Mathf.Min(Box(p, c, new Vector2(0.03f, 0.13f), 0.005f), Box(p, c, new Vector2(0.13f, 0.03f), 0.005f));
+        return Mathf.Min(ring, plus);
+    }
+
+    /// <summary>A drop: health taken from the damage you deal.</summary>
+    public static float Drop(Vector2 p)
+    {
+        float tip = Polygon(p, new[] { new Vector2(0.5f, 0.88f), new Vector2(0.72f, 0.44f), new Vector2(0.28f, 0.44f) });
+        return Mathf.Min(tip, Circle(p, new Vector2(0.5f, 0.38f), 0.22f));
+    }
+
     /// <summary>A soul: a diamond with a smaller one inside, in the left quarter of a 4:1 tag.</summary>
     private static float Soul(Vector2 p)
     {

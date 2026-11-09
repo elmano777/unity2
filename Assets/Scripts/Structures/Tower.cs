@@ -248,7 +248,19 @@ public class Tower : Structure
     /// <summary>The beam and sound of one shot. Public so the rival's copy can play it when the host fires.</summary>
     public void ShowShot(Vector3 targetPoint)
     {
-        if (audioSource != null && attackClip != null)
+        // Guardian sounds from Resources/Cues when present (heavier shot for tier 2 and up); the clip
+        // set on the prefab stays as the fallback.
+        AudioClip shot = ExperienceCues.Clip(Tier >= 2 ? "tower_shot_t2" : "tower_shot_t1");
+        Vector3 from = (beamOrigin != null ? beamOrigin : muzzle).position;
+
+        if (shot != null)
+        {
+            ExperienceCues.Spawn(shot, from, 1f, 1f);
+            ExperienceCues.PlayAt("tower_impact", targetPoint, 0.9f);
+            ExperienceCues.PlayAt("tower_impact_b", targetPoint, 0.6f);
+            PlayWhizby(from, targetPoint);
+        }
+        else if (audioSource != null && attackClip != null)
         {
             audioSource.PlayOneShot(attackClip);
         }
@@ -266,6 +278,36 @@ public class Tower : Structure
         }
 
         Shot?.Invoke(targetPoint);
+    }
+
+    /// <summary>A whistle where the beam passes closest to the player's head, if it passes close (and isn't what it hit).</summary>
+    private static void PlayWhizby(Vector3 from, Vector3 to)
+    {
+        Camera cam = Camera.main;
+
+        if (cam == null)
+        {
+            return;
+        }
+
+        Vector3 head = cam.transform.position;
+        Vector3 line = to - from;
+        float length = line.magnitude;
+
+        if (length < 1f)
+        {
+            return;
+        }
+
+        float along = Mathf.Clamp(Vector3.Dot(head - from, line / length), 0f, length);
+        Vector3 closest = from + line / length * along;
+        float miss = Vector3.Distance(closest, head);
+
+        // Close enough to hear, but not the point it landed on (that is a hit, with its own sound).
+        if (miss < 4f && Vector3.Distance(to, head) > 1.5f)
+        {
+            ExperienceCues.PlayAt("tower_whizby", closest, 0.9f);
+        }
     }
 
     private void OnDrawGizmosSelected()

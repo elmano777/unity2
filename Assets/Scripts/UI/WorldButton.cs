@@ -61,6 +61,7 @@ public class WorldButton : MonoBehaviour, IPointerEnterHandler, IPointerExitHand
     {
         hovered = true;
         HapticFeedback.Pulse(HapticFeedback.Hand.Right, 0.15f, 0.03f);
+        ExperienceCues.Play("menu_hover", 0.35f);
     }
 
     public void OnPointerExit(PointerEventData eventData)
@@ -77,6 +78,7 @@ public class WorldButton : MonoBehaviour, IPointerEnterHandler, IPointerExitHand
     public void Press()
     {
         HapticFeedback.Pulse(HapticFeedback.Hand.Right, 0.5f, 0.08f);
+        ExperienceCues.Play("menu_activate", 0.5f);
         onClick.Invoke();
     }
 

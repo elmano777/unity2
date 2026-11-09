@@ -241,6 +241,12 @@ public class MinionAnimator : MonoBehaviour
             {
                 healed.Heal(amount);
             }
+
+            // The orb landing on whoever killed the medic is heard on both screens.
+            if (target != null)
+            {
+                ExperienceCues.PlayAt("heal_burst", target.position + Vector3.up, 0.7f);
+            }
         });
     }
 

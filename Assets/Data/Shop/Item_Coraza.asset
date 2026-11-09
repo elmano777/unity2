@@ -14,10 +14,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   itemName: Coraza
   description: "-4 de da\xF1o por golpe recibido"
-  icon: {fileID: 21300000, guid: 1e3caa69cf762ea41acff3931bfb4698, type: 3}
+  icon: {fileID: 21300000, guid: b6ea944980b347e0b7f4fb28d0ff2b3f, type: 3}
   category: 1
-  tier: 3
-  cost: 250
+  tier: 2
+  cost: 450
   maxStacks: 2
   stat: 4
   delta: 4

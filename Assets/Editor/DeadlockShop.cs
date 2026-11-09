@@ -41,7 +41,12 @@ public static class DeadlockShop
     private static readonly Dictionary<ShopCategory, Material[]> tabMats = new Dictionary<ShopCategory, Material[]>();
     private static readonly Dictionary<ShopItemSO, Material> iconMats = new Dictionary<ShopItemSO, Material>();
 
-    private static readonly string[] ItemFiles = { "Item_Vitalidad", "Item_Balas", "Item_Gatillo", "Item_Botas", "Item_Coraza" };
+    private static readonly string[] ItemFiles =
+    {
+        "Item_Balas", "Item_Corta", "Item_Esbirros", "Item_Rafaga", "Item_LargoAlcance", "Item_Gatillo",
+        "Item_EspirituExtra", "Item_Expansion", "Item_EspirituMejorado", "Item_Enfriamiento",
+        "Item_Vitalidad", "Item_Botas", "Item_Regeneracion", "Item_Coraza", "Item_RoboVida",
+    };
 
     [MenuItem("Deadlock/Setup/28 Shop Board (Avance 4)")]
     public static void Run()
@@ -80,20 +85,58 @@ public static class DeadlockShop
 
             switch (file)
             {
+                // Weapon
                 case "Item_Balas": Set(item, ShopCategory.Weapon, 1, DeadlockShopIcons.Bullets); break;
-                case "Item_Gatillo": Set(item, ShopCategory.Weapon, 2, DeadlockShopIcons.FastBullet); break;
+                case "Item_Corta": Set(item, ShopCategory.Weapon, 1, DeadlockShopIcons.Bullseye); break;
+                case "Item_Esbirros": Set(item, ShopCategory.Weapon, 1, DeadlockShopIcons.Skull); break;
+                case "Item_Rafaga": Set(item, ShopCategory.Weapon, 1, DeadlockShopIcons.FastBullet); break;
+                case "Item_LargoAlcance": Set(item, ShopCategory.Weapon, 2, DeadlockShopIcons.Scope); break;
+                case "Item_Gatillo": Set(item, ShopCategory.Weapon, 2, DeadlockShopIcons.Crosshair); break;
+
+                // Spirit
+                case "Item_EspirituExtra": Set(item, ShopCategory.Spirit, 1, DeadlockShopIcons.Star); break;
+                case "Item_Expansion": Set(item, ShopCategory.Spirit, 1, DeadlockShopIcons.Waves); break;
+                case "Item_EspirituMejorado": Set(item, ShopCategory.Spirit, 2, DeadlockShopIcons.StarPair); break;
+                case "Item_Enfriamiento": Set(item, ShopCategory.Spirit, 2, DeadlockShopIcons.Hourglass); break;
+
+                // Vitality
+                case "Item_Vitalidad": Set(item, ShopCategory.Vitality, 1, DeadlockShopIcons.HeartPlus); break;
                 case "Item_Botas": Set(item, ShopCategory.Vitality, 1, DeadlockShopIcons.Boot); break;
-                case "Item_Vitalidad": Set(item, ShopCategory.Vitality, 2, DeadlockShopIcons.HeartPlus); break;
-                case "Item_Coraza": Set(item, ShopCategory.Vitality, 3, DeadlockShopIcons.Shield); break;
+                case "Item_Regeneracion": Set(item, ShopCategory.Vitality, 1, DeadlockShopIcons.Regen); break;
+                case "Item_Coraza": Set(item, ShopCategory.Vitality, 2, DeadlockShopIcons.Shield); break;
+                case "Item_RoboVida": Set(item, ShopCategory.Vitality, 2, DeadlockShopIcons.Drop); break;
             }
         }
     }
+
+    /// <summary>Official icons (Assets/Art/Shop/WikiIcons) for the items that have one; the others keep the drawn glyph.</summary>
+    private static readonly Dictionary<string, string> WikiIcons = new Dictionary<string, string>
+    {
+        { "Item_Corta", "close_quarters" },
+        { "Item_Esbirros", "monster_rounds" },
+        { "Item_Rafaga", "rapid_rounds" },
+        { "Item_LargoAlcance", "long_range" },
+        { "Item_EspirituExtra", "extra_spirit" },
+        { "Item_Expansion", "mystic_expansion" },
+        { "Item_EspirituMejorado", "improved_spirit" },
+        { "Item_Enfriamiento", "compress_cooldown" },
+        { "Item_Vitalidad", "extra_health" },
+        { "Item_Botas", "sprint_boots" },
+        { "Item_Regeneracion", "extra_regen" },
+        { "Item_Coraza", "battle_vest" },
+        { "Item_RoboVida", "bullet_lifesteal" },
+    };
 
     private static void Set(ShopItemSO item, ShopCategory category, int tier, System.Func<Vector2, float> glyph)
     {
         item.category = category;
         item.tier = tier;
-        item.icon = DeadlockShopIcons.ItemIcon($"Icon_{item.name}", category, glyph);
+
+        Sprite wiki = WikiIcons.TryGetValue(item.name, out string file)
+            ? AssetDatabase.LoadAssetAtPath<Sprite>($"Assets/Art/Shop/WikiIcons/{file}.png")
+            : null;
+
+        item.icon = wiki != null ? wiki : DeadlockShopIcons.ItemIcon($"Icon_{item.name}", category, glyph);
         EditorUtility.SetDirty(item);
     }
 

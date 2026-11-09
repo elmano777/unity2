@@ -72,6 +72,13 @@ public class NetworkPlayer : NetworkBehaviour
     /// <summary>Host = Amber end, anyone who joins = Sapphire end.</summary>
     public Faction Side => OwnerClientId == NetworkManager.ServerClientId ? Faction.Player : Faction.Enemy;
 
+    /// <summary>The hero this player picked, once it is known (it arrives a moment after the player spawns).</summary>
+    public HeroDefinitionSO Hero =>
+        heroes != null && heroIndex.Value >= 0 && heroIndex.Value < heroes.Length ? heroes[heroIndex.Value] : null;
+
+    /// <summary>Seconds a downed player waits before coming back at their end of the lane.</summary>
+    public float RespawnSeconds => respawnSeconds;
+
     /// <summary>This machine's own player while a duel is running; null offline.</summary>
     public static NetworkPlayer Local { get; private set; }
 
@@ -296,18 +303,21 @@ public class NetworkPlayer : NetworkBehaviour
     {
         if (IsSpawned)
         {
-            CastServerRpc(index, from, to);
+            // The rival's screen draws the effect as big as this player's radius upgrades make it.
+            float scale = PlayerUpgrades.Instance != null ? PlayerUpgrades.Instance.AbilityRadius(1f) : 1f;
+            CastServerRpc(index, from, to, scale);
         }
     }
 
     [ServerRpc]
-    private void CastServerRpc(int index, Vector3 from, Vector3 to)
+    private void CastServerRpc(int index, Vector3 from, Vector3 to, float radiusScale)
     {
-        CastClientRpc(index, from, to);
+        // A radius item is worth far less than this; anything else is a bad packet.
+        CastClientRpc(index, from, to, float.IsNaN(radiusScale) ? 1f : Mathf.Clamp(radiusScale, 0.5f, 3f));
     }
 
     [ClientRpc]
-    private void CastClientRpc(int index, Vector3 from, Vector3 to)
+    private void CastClientRpc(int index, Vector3 from, Vector3 to, float radiusScale)
     {
         if (IsOwner || heroes == null || heroIndex.Value < 0 || heroIndex.Value >= heroes.Length)
         {
@@ -318,7 +328,7 @@ public class NetworkPlayer : NetworkBehaviour
 
         if (abilities != null && index >= 0 && index < abilities.Length)
         {
-            AbilityFx.Play(abilities[index], from, to);
+            AbilityFx.Play(abilities[index], from, to, radiusScale);
         }
     }
 
@@ -332,6 +342,27 @@ public class NetworkPlayer : NetworkBehaviour
         {
             BodyUpgradeServerRpc((int)stat, amount);
         }
+    }
+
+    /// <summary>Asks the host to heal this player's body (regeneration and lifesteal).</summary>
+    public void RequestBodyHeal(float amount)
+    {
+        if (IsSpawned && IsOwner)
+        {
+            BodyHealServerRpc(amount);
+        }
+    }
+
+    [ServerRpc]
+    private void BodyHealServerRpc(float amount)
+    {
+        if (bodyHealth == null || float.IsNaN(amount))
+        {
+            return;
+        }
+
+        // A batch never heals more than this; anything bigger is a bad packet.
+        bodyHealth.Heal(Mathf.Clamp(amount, 0f, 40f));
     }
 
     [ServerRpc]

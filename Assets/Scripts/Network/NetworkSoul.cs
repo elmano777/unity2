@@ -3,9 +3,11 @@ using Unity.Netcode;
 using UnityEngine;
 
 /// <summary>
-/// Networks a <see cref="SoulPickup"/> (RF-07). The host creates the soul; whoever shoots it asks the
-/// host for it, the host gives it to the first asker and pays that player's wallet, and both screens
-/// play the pickup. Without this, two players shooting the same soul would each be paid for it.
+/// Networks a <see cref="SoulPickup"/> (RF-07). The host creates the soul and knows whose it is (the
+/// side that killed the minion). Whoever shoots it asks the host: if the shooter owns it, it is
+/// secured and the owner is paid with a bonus; if the shooter is the rival, it is denied and nobody is
+/// paid; if nobody shoots it, the host pays the owner when it finishes floating up. Both screens play
+/// what happened. Without this, two players shooting the same soul would each be paid for it.
 /// </summary>
 [RequireComponent(typeof(SoulPickup))]
 public class NetworkSoul : NetworkBehaviour
@@ -13,6 +15,10 @@ public class NetworkSoul : NetworkBehaviour
     [Tooltip("Seconds the taken soul stays so the pickup sound reaches the other screen before it is removed.")]
     [SerializeField] private float despawnDelay = 0.3f;
 
+    // Declared before `taken` on purpose: both change in the same tick, and the outcome has to be
+    // known when the "taken" callback runs.
+    private readonly NetworkVariable<int> outcome = new NetworkVariable<int>(0);
+    private readonly NetworkVariable<int> ownerSide = new NetworkVariable<int>(-1);
     private readonly NetworkVariable<bool> taken = new NetworkVariable<bool>(false);
 
     private SoulPickup soul;
@@ -26,6 +32,7 @@ public class NetworkSoul : NetworkBehaviour
     {
         soul.ResetAnchor();
         taken.OnValueChanged += OnTakenChanged;
+        PublishOwner();
     }
 
     public override void OnNetworkDespawn()
@@ -33,7 +40,22 @@ public class NetworkSoul : NetworkBehaviour
         taken.OnValueChanged -= OnTakenChanged;
     }
 
-    /// <summary>Asks the host for this soul. The host answers by paying the wallet if nobody beat us to it.</summary>
+    /// <summary>The owner as the host decided it; before it arrives, the local guess.</summary>
+    public Faction OwnerFaction(Faction fallback)
+    {
+        return ownerSide.Value >= 0 ? (Faction)ownerSide.Value : fallback;
+    }
+
+    /// <summary>Host only: copies who owns the soul so the other screen agrees.</summary>
+    public void PublishOwner()
+    {
+        if (IsSpawned && IsServer)
+        {
+            ownerSide.Value = (int)soul.LocalOwner;
+        }
+    }
+
+    /// <summary>Asks the host to resolve this soul for the local shooter.</summary>
     public void Claim()
     {
         if (IsServer)
@@ -59,21 +81,61 @@ public class NetworkSoul : NetworkBehaviour
             return;
         }
 
+        // Host = Amber end (Player), anyone who joins = Sapphire end (Enemy).
+        Faction shooter = clientId == NetworkManager.ServerClientId ? Faction.Player : Faction.Enemy;
+        bool secured = shooter == soul.Owner;
+
+        outcome.Value = secured ? (int)SoulOutcome.Secured : (int)SoulOutcome.Denied;
         taken.Value = true;
 
-        if (clientId == NetworkManager.ServerClientId)
+        if (secured)
         {
-            Pay(soul.Value);
-        }
-        else
-        {
-            PayClientRpc(soul.Value, new ClientRpcParams
-            {
-                Send = new ClientRpcSendParams { TargetClientIds = new[] { clientId } },
-            });
+            PayFaction(shooter, soul.SecuredValue);
         }
 
         StartCoroutine(RemoveSoon());
+    }
+
+    /// <summary>Host only: nobody shot it, so its owner is paid the plain value.</summary>
+    public void AutoAward()
+    {
+        if (!IsServer || taken.Value)
+        {
+            return;
+        }
+
+        outcome.Value = (int)SoulOutcome.Expired;
+        taken.Value = true;
+        PayFaction(soul.Owner, soul.Value);
+        StartCoroutine(RemoveSoon());
+    }
+
+    /// <summary>Pays the player of that side: the host locally, the other player through an RPC.</summary>
+    private void PayFaction(Faction side, int amount)
+    {
+        if (amount <= 0)
+        {
+            return;
+        }
+
+        if (side == Faction.Player)
+        {
+            Pay(amount);
+            return;
+        }
+
+        foreach (ulong id in NetworkManager.ConnectedClientsIds)
+        {
+            if (id == NetworkManager.ServerClientId)
+            {
+                continue;
+            }
+
+            PayClientRpc(amount, new ClientRpcParams
+            {
+                Send = new ClientRpcSendParams { TargetClientIds = new[] { id } },
+            });
+        }
     }
 
     [ClientRpc]
@@ -98,7 +160,7 @@ public class NetworkSoul : NetworkBehaviour
     {
         if (now)
         {
-            soul.PlayCollected();
+            soul.PlayCollected((SoulOutcome)Mathf.Clamp(outcome.Value, 0, 2));
         }
     }
 

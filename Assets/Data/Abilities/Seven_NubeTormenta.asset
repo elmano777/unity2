@@ -15,8 +15,8 @@ MonoBehaviour:
   abilityName: Nube de tormenta
   description: Descarga rayos sobre todo lo que te rodea.
   icon: {fileID: 0}
-  castClip: {fileID: 8300000, guid: d8bf536ca267f454aa92d9edcca1d945, type: 3}
-  impactClip: {fileID: 8300000, guid: 11a8f94743b5ddf40968920c7c9f38fe, type: 3}
+  castClip: {fileID: 8300000, guid: a3b94f35a4954d82bac9ccdcea6c5e51, type: 3}
+  impactClip: {fileID: 8300000, guid: 8600401402494b27ba76fa2ab84b5a23, type: 3}
   effectPrefab: {fileID: 0}
   tint: {r: 0.6, g: 0.55, b: 1, a: 1}
   cooldown: 20
@@ -26,3 +26,6 @@ MonoBehaviour:
   damage: 90
   radius: 6
   castRange: 0
+  loopClip: {fileID: 8300000, guid: b35991ea4c874cb1bde27490187dce7e, type: 3}
+  endClip: {fileID: 8300000, guid: dca57302ac2547aba6dc15e9d2af5f79, type: 3}
+  loopSeconds: 2.5

@@ -108,7 +108,16 @@ public class ShopBoard : MonoBehaviour
             return;
         }
 
+        int previousTab = activeTab;
         activeTab = Mathf.Clamp(index, 0, pages.Length - 1);
+
+        // A page-turn sound when a tab is shot (not when the board first turns on).
+        if (activeTab != previousTab && Time.timeSinceLevelLoad > 2f)
+        {
+            // One sound per category panel (weapon, vitality, spirit), in the same order as the tabs.
+            string[] panels = { "shop_tab_weapon", "shop_tab_vitality", "shop_tab_spirit" };
+            ExperienceCues.Play(activeTab < panels.Length ? panels[activeTab] : "shop_tab_weapon", 0.6f);
+        }
 
         for (int i = 0; i < pages.Length; i++)
         {
@@ -165,7 +174,19 @@ public class ShopBoard : MonoBehaviour
         selected = index;
         armedUntil = Time.time + confirmWindow;
         messageUntil = 0f;
-        Play(selectClip);
+
+        // A soft page sound when an item is picked; the clip set on the board is the fallback.
+        string hover = "shop_select";
+
+        if (ExperienceCues.Clip(hover) != null)
+        {
+            ExperienceCues.Play(hover, 0.6f);
+        }
+        else
+        {
+            Play(selectClip);
+        }
+
         HapticFeedback.Pulse(HapticFeedback.Hand.Right, 0.2f, 0.05f);
         Refresh();
     }
@@ -184,7 +205,8 @@ public class ShopBoard : MonoBehaviour
 
         if (upgrades.TryBuy(item, out PlayerUpgrades.Refusal refusal))
         {
-            Say($"¡Comprado: {item.itemName}!", buyClip);
+            Say($"¡Comprado: {item.itemName}!", ExperienceCues.Clip("shop_buy") != null ? null : buyClip);
+            ExperienceCues.Play("shop_buy", 0.7f);
             HapticFeedback.Pulse(HapticFeedback.Hand.Right, 0.6f, 0.12f);
             return;
         }

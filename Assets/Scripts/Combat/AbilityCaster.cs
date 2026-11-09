@@ -123,6 +123,7 @@ public class AbilityCaster : MonoBehaviour
         if (Time.time < readyAt[index])
         {
             HapticFeedback.Pulse(HapticFeedback.Hand.Right, 0.1f, 0.03f);
+            ExperienceCues.Play(ExperienceCues.NotReady, 0.5f);
             return false;
         }
 
@@ -133,12 +134,16 @@ public class AbilityCaster : MonoBehaviour
         }
 
         AbilitySO ability = abilities[index];
-        readyAt[index] = Time.time + ability.cooldown;
+        readyAt[index] = Time.time + ability.cooldown * (PlayerUpgrades.Instance != null ? PlayerUpgrades.Instance.CooldownMultiplier : 1f);
 
         Vector3 from = aim.position;
         Vector3 to = Resolve(ability, from, aim.forward);
 
-        AbilityFx.Play(ability, from, to);
+        // The effect grows with the radius item, as in Deadlock: what you see is the area that hurts.
+        float radiusScale = ability.radius > 0f && PlayerUpgrades.Instance != null
+            ? PlayerUpgrades.Instance.AbilityRadius(ability.radius) / ability.radius
+            : 1f;
+        AbilityFx.Play(ability, from, to, radiusScale);
         HapticFeedback.Pulse(index == 0 ? HapticFeedback.Hand.Right : HapticFeedback.Hand.Left, hapticAmplitude, hapticDuration);
         GameEvents.RaiseAbilityUsed(ability);
         Cast?.Invoke(index, from, to);
@@ -246,7 +251,8 @@ public class AbilityCaster : MonoBehaviour
     {
         struck.Clear();
 
-        int count = Physics.OverlapSphereNonAlloc(centre, ability.radius, overlapBuffer, hitMask, QueryTriggerInteraction.Collide);
+        float radius = PlayerUpgrades.Instance != null ? PlayerUpgrades.Instance.AbilityRadius(ability.radius) : ability.radius;
+        int count = Physics.OverlapSphereNonAlloc(centre, radius, overlapBuffer, hitMask, QueryTriggerInteraction.Collide);
 
         for (int i = 0; i < count; i++)
         {
@@ -268,7 +274,8 @@ public class AbilityCaster : MonoBehaviour
 
     private void Hit(IDamageable target, AbilitySO ability, Vector3 point, Vector3 direction)
     {
-        DamageInfo info = new DamageInfo(ability.damage, MatchNet.LocalFaction, gameObject, DamageType.Ability)
+        float amount = PlayerUpgrades.Instance != null ? PlayerUpgrades.Instance.AbilityDamage(ability.damage) : ability.damage;
+        DamageInfo info = new DamageInfo(amount, MatchNet.LocalFaction, gameObject, DamageType.Ability)
             .AtImpact(point, direction);
 
         target.TakeDamage(info);

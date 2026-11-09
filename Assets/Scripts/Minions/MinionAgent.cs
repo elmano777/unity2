@@ -78,6 +78,9 @@ public class MinionAgent : MonoBehaviour
     [SerializeField] private float scanInterval = 0.25f;
 
     [Header("Medic")]
+    [Tooltip("Off (the Deadlock way): the medic only drops a healing orb for whoever kills it. On: it also heals wounded allies while alive.")]
+    [SerializeField] private bool healAlliesWhileAlive;
+
     [Tooltip("Layers scanned for allies to heal. Medics only.")]
     [SerializeField] private LayerMask allyMask = ~0;
 
@@ -167,8 +170,20 @@ public class MinionAgent : MonoBehaviour
     /// </summary>
     public void ShowAction(Action action, Vector3 point)
     {
-        Acted?.Invoke(action, point);
+        RaiseActed(action, point);
     }
+
+    /// <summary>Any minion acted, on either screen: for the sounds, which don't care which minion it was.</summary>
+    public static event System.Action<MinionAgent, Action, Vector3> AnyActed;
+
+    private void RaiseActed(Action action, Vector3 point)
+    {
+        Acted?.Invoke(action, point);
+        AnyActed?.Invoke(this, action, point);
+    }
+
+    /// <summary>Role of this minion's definition, for the sounds (a trooper shoots, a melee swings).</summary>
+    public MinionRole Role => definition != null ? definition.role : MinionRole.Trooper;
 
     /// <summary>Current behaviour, exposed for debugging and for a future bot to read.</summary>
     public State CurrentState { get; private set; } = State.Advancing;
@@ -278,16 +293,85 @@ public class MinionAgent : MonoBehaviour
         visualRoot.localRotation = visualBaseRotation * Quaternion.Euler(walkLean * currentLean, 0f, roll);
     }
 
+    // ---- Target priority (as in a MOBA) ----
+    // 0 = the hero that has been hitting our hero, 1 = enemy minions, 2 = a hero, 3 = a structure.
+
+    private const float AggroSeconds = 4f;
+    private static readonly Dictionary<Faction, float> HeroAggroAt = new Dictionary<Faction, float>();
+    private static int listeners;
+    private int currentCategory = 99;
+
+    /// <summary>
+    /// Remembers which side's hero just hurt the other side's hero. The rival's minions then go for the
+    /// attacker for a few seconds, and drop back to the wave once it stops.
+    /// </summary>
+    private static void OnAnyDamage(IDamageable target, DamageInfo info)
+    {
+        if (info.type != DamageType.Bullet && info.type != DamageType.Ability)
+        {
+            return;
+        }
+
+        if (target is Component part && IsHeroLayer(part.gameObject.layer) && info.source != target.Faction)
+        {
+            HeroAggroAt[info.source] = Time.time;
+        }
+    }
+
+    private static bool IsHeroLayer(int layer)
+    {
+        string name = LayerMask.LayerToName(layer);
+        return name == "PlayerBody" || name == "Rival";
+    }
+
+    private bool HeroAggroActive()
+    {
+        return HeroAggroAt.TryGetValue(FactionUtility.Opposite(faction), out float at) && Time.time - at < AggroSeconds;
+    }
+
+    private int CategoryOf(Transform target)
+    {
+        if (target == null)
+        {
+            return 99;
+        }
+
+        bool hero = IsHeroLayer(target.gameObject.layer);
+
+        if (hero)
+        {
+            return HeroAggroActive() ? 0 : 2;
+        }
+
+        if (target.GetComponentInParent<MinionAgent>() != null)
+        {
+            return 1;
+        }
+
+        return 3;
+    }
+
     private void OnEnable()
     {
         health.Killed += OnKilled;
         Active.Add(this);
+
+        if (listeners++ == 0)
+        {
+            GameEvents.DamageDealt += OnAnyDamage;
+        }
     }
 
     private void OnDisable()
     {
         health.Killed -= OnKilled;
         Active.Remove(this);
+
+        if (--listeners <= 0)
+        {
+            listeners = 0;
+            GameEvents.DamageDealt -= OnAnyDamage;
+        }
     }
 
     /// <summary>
@@ -323,7 +407,9 @@ public class MinionAgent : MonoBehaviour
         // A medic fights like a melee minion and, on top of that, throws healing orbs at wounded allies.
         UpdateFighter();
 
-        if (definition.role == MinionRole.Medic)
+        // In Deadlock the medic heals nobody while it lives: it is a medic because of the orb it drops
+        // when it dies, which heals whoever killed it. Switch this on to bring back healing allies.
+        if (definition.role == MinionRole.Medic && healAlliesWhileAlive)
         {
             UpdateMedic();
         }
@@ -385,7 +471,7 @@ public class MinionAgent : MonoBehaviour
 
         // The medic throws an orb and the ally is healed when it lands, not the moment it leaves.
         StartCoroutine(DeliverHeal(healTarget, definition.healAmount));
-        Acted?.Invoke(Action.Heal, allyPosition + Vector3.up * 0.8f);
+        RaiseActed(Action.Heal, allyPosition + Vector3.up * 0.8f);
 
         if (healBeam != null)
         {
@@ -461,6 +547,7 @@ public class MinionAgent : MonoBehaviour
         if (target != null && target.IsAlive && CurrentState != State.Dead)
         {
             target.Heal(amount);
+            ExperienceCues.PlayAt("heal_burst", target.transform.position + Vector3.up, 0.6f);
         }
     }
 
@@ -574,6 +661,14 @@ public class MinionAgent : MonoBehaviour
 
         FaceToward(currentTargetTransform.position);
 
+        // Ranged troopers hold their distance: if the target gets too close they back away while they shoot.
+        if (definition.role == MinionRole.Trooper && distance < definition.attackRange * 0.5f)
+        {
+            Vector3 away = transform.position + (transform.position - currentTargetTransform.position);
+            MoveToward(away);
+            FaceToward(currentTargetTransform.position);
+        }
+
         if (Time.time < nextAttackTime)
         {
             return;
@@ -585,7 +680,7 @@ public class MinionAgent : MonoBehaviour
             .AtImpact(currentTargetTransform.position, (currentTargetTransform.position - transform.position).normalized);
 
         currentTarget.TakeDamage(info);
-        Acted?.Invoke(Action.Attack, currentTargetTransform.position);
+        RaiseActed(Action.Attack, currentTargetTransform.position);
     }
 
     private void ReturnToLane()
@@ -602,10 +697,10 @@ public class MinionAgent : MonoBehaviour
 
     private void AcquireTarget()
     {
-        if (HasLiveTarget() && CurrentState != State.Advancing)
-        {
-            return;
-        }
+        bool hasTarget = HasLiveTarget() && CurrentState != State.Advancing;
+
+        // Keep the current target unless something more important shows up (the hero that is hitting ours).
+        int ownCategory = hasTarget ? CategoryOf(currentTargetTransform) : 99;
 
         int count = Physics.OverlapSphereNonAlloc(
             transform.position, definition.detectionRange, overlapBuffer, targetMask, QueryTriggerInteraction.Ignore);
@@ -613,6 +708,7 @@ public class MinionAgent : MonoBehaviour
         IDamageable best = null;
         Transform bestTransform = null;
         float bestDistance = float.MaxValue;
+        int bestCategory = 99;
 
         for (int i = 0; i < count; i++)
         {
@@ -644,12 +740,15 @@ public class MinionAgent : MonoBehaviour
             }
 
             float distance = Vector3.SqrMagnitude(collider.transform.position - transform.position);
+            int category = CategoryOf(collider.transform);
 
-            if (distance < bestDistance)
+            // Lower category first (wave before heroes before structures), nearest within the same one.
+            if (category < bestCategory || (category == bestCategory && distance < bestDistance))
             {
                 best = candidate;
                 bestTransform = collider.transform;
                 bestDistance = distance;
+                bestCategory = category;
             }
         }
 
@@ -658,8 +757,15 @@ public class MinionAgent : MonoBehaviour
             return;
         }
 
+        // Already fighting something at least as important: stay on it.
+        if (hasTarget && bestCategory >= ownCategory)
+        {
+            return;
+        }
+
         currentTarget = best;
         currentTargetTransform = bestTransform;
+        currentCategory = bestCategory;
         CurrentState = State.Chasing;
     }
 
@@ -922,6 +1028,9 @@ public class MinionAgent : MonoBehaviour
                 if (spawned.TryGetComponent(out SoulPickup pickup))
                 {
                     pickup.SetValue(perDrop);
+
+                    // The soul belongs to whoever killed this minion: the opposite side.
+                    pickup.SetOwner(FactionUtility.Opposite(faction));
                 }
             });
 

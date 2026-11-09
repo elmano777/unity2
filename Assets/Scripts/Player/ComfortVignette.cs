@@ -88,7 +88,7 @@ public class ComfortVignette : MonoBehaviour
 
         if (IsEnabled)
         {
-            float moving = locomotion != null ? locomotion.Speed01 * maxStrength : 0f;
+            float moving = locomotion != null ? Mathf.Max(locomotion.Speed01, locomotion.ExternalMotion01) * maxStrength : 0f;
             target = Mathf.Max(moving, turnBoost);
         }
 

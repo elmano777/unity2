@@ -218,7 +218,7 @@ public static class DeadlockExpandedMap
         {
             var frame = new Frame(half, 1);
             BuildStructureMarkers(frame, structures);
-            BuildTeleporters(frame, teleporters);
+            // Teleporters were replaced by the zipline (LaneZipline): not rebuilt on this map any more.
         }
 
         RebuildGround();

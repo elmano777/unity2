@@ -48,17 +48,17 @@ public class AbilityFx : MonoBehaviour
     }
 
     /// <summary>Shows <paramref name="ability"/> cast from <paramref name="from"/> towards <paramref name="to"/>.</summary>
-    public static void Play(AbilitySO ability, Vector3 from, Vector3 to)
+    public static void Play(AbilitySO ability, Vector3 from, Vector3 to, float radiusScale = 1f)
     {
         if (ability == null || Instance == null)
         {
             return;
         }
 
-        Instance.StartCoroutine(Instance.Run(ability, from, to));
+        Instance.StartCoroutine(Instance.Run(ability, from, to, Mathf.Max(0.1f, radiusScale)));
     }
 
-    private IEnumerator Run(AbilitySO ability, Vector3 from, Vector3 to)
+    private IEnumerator Run(AbilitySO ability, Vector3 from, Vector3 to, float radiusScale)
     {
         if (ability.castClip != null)
         {
@@ -77,11 +77,11 @@ public class AbilityFx : MonoBehaviour
                     yield return Orb(ability, from, to);
                 }
 
-                yield return Burst(ability, to, ability.radius);
+                yield return Burst(ability, to, ability.radius * radiusScale);
                 break;
 
             default:
-                yield return Burst(ability, from, ability.radius);
+                yield return Burst(ability, from, ability.radius * radiusScale);
                 break;
         }
     }
@@ -116,6 +116,11 @@ public class AbilityFx : MonoBehaviour
             Destroy(Instantiate(ability.effectPrefab, centre, Quaternion.identity), 3f);
         }
 
+        if (ability.loopClip != null || ability.endClip != null)
+        {
+            StartCoroutine(LoopAndEnd(ability, centre));
+        }
+
         GameObject sphere = Shape(PrimitiveType.Sphere, "AbilityBurst", ability.tint);
         GameObject ring = Shape(PrimitiveType.Cylinder, "AbilityRing", ability.tint);
         sphere.transform.position = centre;
@@ -140,6 +145,46 @@ public class AbilityFx : MonoBehaviour
 
         Destroy(sphere);
         Destroy(ring);
+    }
+
+    /// <summary>A hum that loops where the ability landed, fades out, then the end sound plays.</summary>
+    private IEnumerator LoopAndEnd(AbilitySO ability, Vector3 centre)
+    {
+        AudioSource hum = null;
+
+        if (ability.loopClip != null)
+        {
+            var holder = new GameObject("AbilityLoop");
+            holder.transform.position = centre;
+            hum = holder.AddComponent<AudioSource>();
+            hum.clip = ability.loopClip;
+            hum.loop = true;
+            hum.spatialBlend = 1f;
+            hum.minDistance = 3f;
+            hum.maxDistance = 30f;
+            hum.volume = 0.7f;
+            hum.Play();
+
+            const float fade = 0.4f;
+            float end = Mathf.Max(fade, ability.loopSeconds);
+
+            for (float t = 0f; t < end; t += Time.deltaTime)
+            {
+                hum.volume = 0.7f * Mathf.Clamp01((end - t) / fade);
+                yield return null;
+            }
+
+            Destroy(holder);
+        }
+        else
+        {
+            yield return new WaitForSeconds(ability.loopSeconds);
+        }
+
+        if (ability.endClip != null)
+        {
+            AudioSource.PlayClipAtPoint(ability.endClip, centre, 0.8f);
+        }
     }
 
     private IEnumerator Beam(AbilitySO ability, Vector3 from, Vector3 to)

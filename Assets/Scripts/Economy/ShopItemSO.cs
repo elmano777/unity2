@@ -8,6 +8,30 @@ public enum ItemStat
     FireRate = 2,
     MoveSpeed = 3,
     DamageReduction = 4,
+
+    /// <summary>Fraction more weapon damage when the target is under 8 m away.</summary>
+    CloseDamage = 5,
+
+    /// <summary>Fraction more weapon damage against minions.</summary>
+    MinionDamage = 6,
+
+    /// <summary>Fraction more weapon damage when the target is over 15 m away.</summary>
+    LongDamage = 7,
+
+    /// <summary>Health regained per second.</summary>
+    HealthRegen = 8,
+
+    /// <summary>Fraction of the damage you deal that comes back as health.</summary>
+    Lifesteal = 9,
+
+    /// <summary>Fraction more ability damage.</summary>
+    AbilityDamage = 10,
+
+    /// <summary>Fraction more ability radius.</summary>
+    AbilityRadius = 11,
+
+    /// <summary>Fraction less ability cooldown.</summary>
+    CooldownReduction = 12,
 }
 
 /// <summary>Shop tab an item is listed under, each with its own colour on the <see cref="ShopBoard"/>.</summary>

@@ -39,6 +39,16 @@ public class AbilitySO : ScriptableObject
     [Tooltip("Sound where the ability lands.")]
     public AudioClip impactClip;
 
+    [Tooltip("Optional hum that loops where the ability lands for Loop Seconds (e.g. the storm cloud).")]
+    public AudioClip loopClip;
+
+    [Tooltip("Optional sound when the ability fades out, after the loop.")]
+    public AudioClip endClip;
+
+    [Tooltip("How long the loop plays before the end sound.")]
+    [Min(0f)]
+    public float loopSeconds = 2.5f;
+
     [Tooltip("Effect spawned at the point of impact.")]
     public GameObject effectPrefab;
 
