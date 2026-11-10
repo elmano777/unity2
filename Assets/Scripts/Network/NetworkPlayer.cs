@@ -383,6 +383,11 @@ public class NetworkPlayer : NetworkBehaviour
             yield return new WaitForSeconds(delay);
         }
 
+        if (ability.tetherSeconds > 0f)
+        {
+            AbilityEffects.RunStake(ability, Side, at, radius);
+        }
+
         AbilityEffects.ApplyMovement(ability, Side, at, radius);
     }
 

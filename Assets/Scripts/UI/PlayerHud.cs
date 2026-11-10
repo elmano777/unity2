@@ -74,6 +74,7 @@ public class PlayerHud : MonoBehaviour
 
     private Transform[] abilityShades = System.Array.Empty<Transform>();
     private Renderer[] abilityShadeRenderers = System.Array.Empty<Renderer>();
+    private TMP_Text[] abilityCharges = System.Array.Empty<TMP_Text>();
     private TMP_Text[] abilityTimers = System.Array.Empty<TMP_Text>();
     private Renderer[] abilityRings = System.Array.Empty<Renderer>();
 
@@ -211,6 +212,7 @@ public class PlayerHud : MonoBehaviour
         int count = caster != null ? caster.Abilities.Count : 0;
         abilityShades = new Transform[count];
         abilityShadeRenderers = new Renderer[count];
+        abilityCharges = new TMP_Text[count];
         abilityTimers = new TMP_Text[count];
         abilityRings = new Renderer[count];
         wasCooling = new bool[count];
@@ -241,6 +243,14 @@ public class PlayerHud : MonoBehaviour
             abilityShades[i] = shade.transform;
             abilityShadeRenderers[i] = shade.GetComponent<Renderer>();
             abilityTimers[i] = Text(string.Empty, centre + new Vector3(0f, 0f, -0.002f), 0.055f, Color.white, new Vector2(IconSize, IconSize), FontStyles.Bold);
+
+            // Charges left, in a small badge at the top right of the icon (only for multi-charge abilities).
+            if (ability != null && ability.charges > 1)
+            {
+                Vector3 badge = centre + new Vector3(IconSize * 0.42f, IconSize * 0.42f, -0.003f);
+                Quad("ChargeBadge" + i, badge + new Vector3(0f, 0f, 0.001f), new Vector2(0.036f, 0.036f), new Color(0.55f, 0.3f, 0.85f, 1f), Disc());
+                abilityCharges[i] = Text(ability.charges.ToString(), badge, 0.026f, Color.white, new Vector2(0.036f, 0.036f), FontStyles.Bold);
+            }
 
             string key = i < AbilityCaster.ButtonNames.Length ? AbilityCaster.ButtonNames[i] : "?";
             Quad("KeyBack" + i, centre + new Vector3(0f, -IconSize / 2f - 0.025f, 0f), new Vector2(0.034f, 0.034f), new Color(0.85f, 0.88f, 0.95f, 1f));
@@ -516,7 +526,12 @@ public class PlayerHud : MonoBehaviour
                 }
 
                 float wait = caster.CooldownRemaining(i);
-                float total = Mathf.Max(0.1f, ability.cooldown * mult);
+                float total = caster.CooldownTotal(i);
+
+                if (ability.charges > 1)
+                {
+                    abilityCharges[i].text = caster.Charges(i).ToString();
+                }
                 float left = wait > 0f ? Mathf.Clamp01(wait / total) : 0f;
                 bool charging = caster.ChargeAmount > 0f && ability.chargeSeconds > 0f && wait <= 0f;
                 bool channeling = caster.IsChanneling && caster.ChannelingIndex == i;

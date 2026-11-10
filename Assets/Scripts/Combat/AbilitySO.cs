@@ -148,6 +148,23 @@ public class AbilitySO : ScriptableObject
     [Range(0.1f, 1f)]
     public float unchargedDamage = 0.5f;
 
+    [Header("Charges")]
+    [Tooltip("Casts it holds. Each one used refills on its own after Cooldown.")]
+    [Min(1)]
+    public int charges = 1;
+
+    [Tooltip("Seconds between two casts while it still has charges.")]
+    [Min(0f)]
+    public float chargeGap = 2.5f;
+
+    [Header("Line shots")]
+    [Tooltip("The shot goes through enemies and hurts every one on its line, stopped only by the world.")]
+    public bool pierce;
+
+    [Tooltip("Extra damage against targets under half health, growing to this as their health drops to zero.")]
+    [Min(0f)]
+    public float lowHealthBonus;
+
     /// <summary>True when the ability holds or slows what it catches.</summary>
     public bool HasMovementEffect => slow > 0f || tetherSeconds > 0f;
 }

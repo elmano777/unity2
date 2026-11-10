@@ -124,29 +124,43 @@ public static class DeadlockHeroStats
             a.cooldown = 30f;
         });
 
-        // Vindicta's Stake: holds whoever is near where it lands (wiki: 1.75 s tether, 9 m, 40 % slow).
+        // Vindicta's Stake (wiki: thrown, tethers enemies to where it lands for 1.75 s, capture radius
+        // and tether length 9 m, 40 % move slow, 40 damage).
         Edit("Assets/Data/Abilities/Vindicta_Estaca.asset", a =>
         {
-            a.description = "Clava una estaca: los enemigos cercanos quedan amarrados a ella y más lentos unos segundos.";
+            a.description = "Lanza una estaca: los enemigos cerca de donde cae quedan amarrados a ella, sin poder alejarse, y más lentos.";
+            a.icon = Icon("Vindicta_Stake");
+            a.tint = new Color(0.62f, 0.4f, 1f, 1f);
             a.shape = AbilityShape.AreaAtAim;
-            a.damage = 55f;
-            a.radius = 4f;
-            a.tetherSeconds = 2f;
+            a.travelTime = 0.35f;
+            a.castRange = 20f;
+            a.damage = 40f;
+            a.radius = 4.5f;
+            a.tetherSeconds = 1.75f;
             a.tetherLength = 4.5f;
             a.slow = 0.4f;
-            a.slowSeconds = 2f;
-            a.cooldown = 10f;
+            a.slowSeconds = 1.75f;
+            a.cooldown = 12f;
         });
 
-        // Vindicta's Assassinate: hold to charge, release to fire (wiki: 1 s to full, 50 % uncharged, double when full).
+        // Vindicta's Assassinate (wiki: hitscan, pierces, 1 s to full charge, 50 % uncharged, bonus damage
+        // under 50 % health, 2 charges 2.5 s apart). Scaled so a full shot plus the finisher bonus can
+        // take a hurt rival down, as the original's "one shot kill".
         Edit("Assets/Data/Abilities/Vindicta_Asesinar.asset", a =>
         {
-            a.description = "Mantén el botón para cargar el disparo y suéltalo para disparar: cargado del todo hace el doble.";
+            a.description = "Mantén el botón para apuntar con la mira y suéltalo para disparar: atraviesa enemigos, cargado hace el doble y remata a los que tienen menos de media vida. Dos cargas.";
+            a.icon = Icon("Vindicta_Assassinate");
+            a.tint = new Color(0.72f, 0.42f, 1f, 1f);
             a.shape = AbilityShape.Line;
-            a.damage = 160f;
+            a.castRange = 70f;
+            a.damage = 120f;
             a.chargeSeconds = 1f;
             a.unchargedDamage = 0.5f;
-            a.cooldown = 16f;
+            a.pierce = true;
+            a.lowHealthBonus = 120f;
+            a.charges = 2;
+            a.chargeGap = 2.5f;
+            a.cooldown = 30f;
         });
     }
 

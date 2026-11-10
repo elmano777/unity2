@@ -45,3 +45,7 @@ MonoBehaviour:
   tetherLength: 4
   chargeSeconds: 0
   unchargedDamage: 0.5
+  charges: 1
+  chargeGap: 2.5
+  pierce: 0
+  lowHealthBonus: 0

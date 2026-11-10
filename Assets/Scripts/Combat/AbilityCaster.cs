@@ -63,6 +63,13 @@ public class AbilityCaster : MonoBehaviour
         }
 
         readyAt = new float[abilities.Length];
+        refillAt = new float[abilities.Length];
+        chargesLeft = new int[abilities.Length];
+
+        for (int i = 0; i < abilities.Length; i++)
+        {
+            chargesLeft[i] = abilities[i] != null ? abilities[i].charges : 1;
+        }
 
         if (aim == null)
         {
@@ -137,8 +144,56 @@ public class AbilityCaster : MonoBehaviour
         TryCast(index, Mathf.Lerp(ability.unchargedDamage, 1f, k));
     }
 
+    private LineRenderer scope;
+
+    /// <summary>
+    /// While a charged shot is held, a thin violet sight runs from the hand to whatever it would hit,
+    /// thickening and brightening as it charges: the VR stand-in for looking down a scope.
+    /// </summary>
+    private void UpdateScope()
+    {
+        bool show = charging >= 0 && aim != null;
+
+        if (!show)
+        {
+            if (scope != null && scope.enabled) scope.enabled = false;
+            return;
+        }
+
+        if (scope == null)
+        {
+            scope = new GameObject("ChargeScope").AddComponent<LineRenderer>();
+            scope.transform.SetParent(transform, false);
+            scope.sharedMaterial = new Material(Shader.Find("Sprites/Default"));
+            scope.positionCount = 2;
+            scope.useWorldSpace = true;
+            scope.numCapVertices = 2;
+            scope.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        }
+
+        AbilitySO ability = abilities[charging];
+        float k = ChargeAmount;
+        float range = Mathf.Max(ability.radius, ability.castRange);
+        Vector3 start = aim.position;
+        Vector3 end = Physics.Raycast(start, aim.forward, out RaycastHit hit, range, groundMask, QueryTriggerInteraction.Ignore)
+            ? hit.point : start + aim.forward * range;
+
+        Color c = Color.Lerp(ability.tint, Color.white, k >= 1f ? 0.35f : 0f);
+        Color near = c, far = c;
+        near.a = Mathf.Lerp(0.25f, 0.9f, k);
+        far.a = near.a * 0.35f;
+        scope.enabled = true;
+        scope.SetPosition(0, start);
+        scope.SetPosition(1, end);
+        scope.widthMultiplier = Mathf.Lerp(0.004f, 0.014f, k);
+        scope.startColor = near;
+        scope.endColor = far;
+    }
+
     private void Update()
     {
+        UpdateScope();
+
         if (charging < 0)
         {
             return;
@@ -159,9 +214,75 @@ public class AbilityCaster : MonoBehaviour
         }
     }
 
+    // ---- Charges (Vindicta's Assassinate holds two) ----
+
+    private int[] chargesLeft = System.Array.Empty<int>();
+    private float[] refillAt = System.Array.Empty<float>();
+
+    private float ScaledCooldown(AbilitySO ability) =>
+        ability.cooldown * (PlayerUpgrades.Instance != null ? PlayerUpgrades.Instance.CooldownMultiplier : 1f);
+
+    /// <summary>Gives back the charges whose cooldown has run out, one per cooldown.</summary>
+    private void Refill(int index)
+    {
+        AbilitySO ability = abilities[index];
+
+        if (ability == null || ability.charges <= 1)
+        {
+            return;
+        }
+
+        while (chargesLeft[index] < ability.charges && refillAt[index] > 0f && Time.time >= refillAt[index])
+        {
+            chargesLeft[index]++;
+            refillAt[index] = chargesLeft[index] < ability.charges ? refillAt[index] + ScaledCooldown(ability) : 0f;
+        }
+    }
+
+    /// <summary>True when ability <paramref name="index"/> can go off now.</summary>
+    private bool IsReady(int index)
+    {
+        Refill(index);
+        AbilitySO ability = abilities[index];
+        bool hasCharge = ability == null || ability.charges <= 1 || chargesLeft[index] > 0;
+        return hasCharge && Time.time >= readyAt[index];
+    }
+
+    /// <summary>Starts the wait after a cast: the gap to the next charge, or the full cooldown.</summary>
+    private void Spend(int index)
+    {
+        AbilitySO ability = abilities[index];
+
+        if (ability.charges <= 1)
+        {
+            readyAt[index] = Time.time + ScaledCooldown(ability);
+            return;
+        }
+
+        chargesLeft[index]--;
+        readyAt[index] = Time.time + ability.chargeGap;
+
+        if (refillAt[index] <= 0f)
+        {
+            refillAt[index] = Time.time + ScaledCooldown(ability);
+        }
+    }
+
+    /// <summary>Charges ability <paramref name="index"/> holds right now (1 for single-charge abilities when ready).</summary>
+    public int Charges(int index)
+    {
+        if (index < 0 || index >= abilities.Length || abilities[index] == null)
+        {
+            return 0;
+        }
+
+        Refill(index);
+        return abilities[index].charges <= 1 ? (CooldownRemaining(index) > 0f ? 0 : 1) : chargesLeft[index];
+    }
+
     private bool CanStart(int index)
     {
-        if (Time.time < readyAt[index])
+        if (!IsReady(index))
         {
             HapticFeedback.Pulse(HapticFeedback.Hand.Right, 0.1f, 0.03f);
             ExperienceCues.Play(ExperienceCues.NotReady, 0.5f);
@@ -183,7 +304,37 @@ public class AbilityCaster : MonoBehaviour
     /// <summary>Seconds until ability <paramref name="index"/> can be cast again; 0 when ready.</summary>
     public float CooldownRemaining(int index)
     {
-        return index >= 0 && index < readyAt.Length ? Mathf.Max(0f, readyAt[index] - Time.time) : 0f;
+        if (index < 0 || index >= readyAt.Length)
+        {
+            return 0f;
+        }
+
+        AbilitySO ability = abilities[index];
+
+        if (ability != null && ability.charges > 1)
+        {
+            Refill(index);
+
+            // Out of charges: until the next one comes back. Otherwise just the gap between shots.
+            return chargesLeft[index] > 0
+                ? Mathf.Max(0f, readyAt[index] - Time.time)
+                : Mathf.Max(0f, Mathf.Max(refillAt[index], readyAt[index]) - Time.time);
+        }
+
+        return Mathf.Max(0f, readyAt[index] - Time.time);
+    }
+
+    /// <summary>Total wait of ability <paramref name="index"/>'s current cooldown, for the HUD's fill.</summary>
+    public float CooldownTotal(int index)
+    {
+        AbilitySO ability = index >= 0 && index < abilities.Length ? abilities[index] : null;
+
+        if (ability == null)
+        {
+            return 1f;
+        }
+
+        return ability.charges > 1 && chargesLeft[index] > 0 ? Mathf.Max(0.1f, ability.chargeGap) : Mathf.Max(0.1f, ScaledCooldown(ability));
     }
 
     /// <summary>Makes every ability ready now (editor demo keys).</summary>
@@ -192,6 +343,8 @@ public class AbilityCaster : MonoBehaviour
         for (int i = 0; i < readyAt.Length; i++)
         {
             readyAt[i] = 0f;
+            refillAt[i] = 0f;
+            chargesLeft[i] = abilities[i] != null ? abilities[i].charges : 1;
         }
     }
 
@@ -210,7 +363,7 @@ public class AbilityCaster : MonoBehaviour
             return false;
         }
 
-        if (Time.time < readyAt[index] || IsChanneling)
+        if (!IsReady(index) || IsChanneling)
         {
             HapticFeedback.Pulse(HapticFeedback.Hand.Right, 0.1f, 0.03f);
             ExperienceCues.Play(ExperienceCues.NotReady, 0.5f);
@@ -224,7 +377,7 @@ public class AbilityCaster : MonoBehaviour
         }
 
         AbilitySO ability = abilities[index];
-        readyAt[index] = Time.time + ability.cooldown * (PlayerUpgrades.Instance != null ? PlayerUpgrades.Instance.CooldownMultiplier : 1f);
+        Spend(index);
 
         Vector3 from = aim.position;
         castScale = Mathf.Clamp(damageScale, 0.1f, 1f);
@@ -251,6 +404,7 @@ public class AbilityCaster : MonoBehaviour
             {
                 float range = Mathf.Max(ability.radius, ability.castRange);
                 Vector3 end = from + direction * range;
+                struck.Clear();
 
                 foreach (RaycastHit hit in SortedHits(from, direction, range))
                 {
@@ -258,14 +412,21 @@ public class AbilityCaster : MonoBehaviour
 
                     if (target != null && target.IsAlive && target.Faction != Faction.Neutral)
                     {
-                        // The shooter's own body and allies don't block the shot; the first enemy takes it.
-                        if (!FactionUtility.IsHostile(MatchNet.LocalFaction, target.Faction))
+                        // The shooter's own body and allies don't block the shot.
+                        if (!FactionUtility.IsHostile(MatchNet.LocalFaction, target.Faction) || !struck.Add(target))
                         {
                             continue;
                         }
 
-                        Hit(target, ability, hit.point, direction);
+                        Hit(target, ability.damage * castScale + LowHealthBonus(ability, hit.collider), hit.point, direction);
                         end = hit.point;
+
+                        // A piercing shot carries on to the next enemy on the line; a plain one stops here.
+                        if (ability.pierce)
+                        {
+                            continue;
+                        }
+
                         break;
                     }
 
@@ -472,6 +633,11 @@ public class AbilityCaster : MonoBehaviour
             yield return new WaitForSeconds(delay);
         }
 
+        if (ability.tetherSeconds > 0f)
+        {
+            AbilityEffects.RunStake(ability, MatchNet.LocalFaction, point, ScaledRadius(ability));
+        }
+
         DamageArea(ability, point, ability.damage);
         AbilityEffects.ApplyMovement(ability, MatchNet.LocalFaction, point, ScaledRadius(ability));
     }
@@ -510,6 +676,28 @@ public class AbilityCaster : MonoBehaviour
     }
 
     private float castScale = 1f;
+
+    /// <summary>
+    /// Extra damage against a target under half health (Assassinate's finisher): nothing at 50 %,
+    /// the full bonus at 0. Reads the hit points this screen sees (the host's numbers, mirrored).
+    /// </summary>
+    private static float LowHealthBonus(AbilitySO ability, Collider collider)
+    {
+        if (ability.lowHealthBonus <= 0f)
+        {
+            return 0f;
+        }
+
+        Health health = collider.GetComponentInParent<Health>();
+
+        if (health == null || health.MaxHealth <= 0f)
+        {
+            return 0f;
+        }
+
+        float fraction = health.CurrentHealth / health.MaxHealth;
+        return fraction >= 0.5f ? 0f : ability.lowHealthBonus * Mathf.InverseLerp(0.5f, 0f, fraction);
+    }
 
     private void Hit(IDamageable target, AbilitySO ability, Vector3 point, Vector3 direction) =>
         Hit(target, ability.damage * castScale, point, direction);

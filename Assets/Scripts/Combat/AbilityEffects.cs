@@ -320,6 +320,146 @@ public static class AbilityEffects
         }
     }
 
+    // ------------------------------------------------------------------ stake
+
+    /// <summary>
+    /// Vindicta's stake where it landed: a dark stake driven into the ground, a violet ring at its
+    /// capture radius, and a ghostly tether from the stake to every enemy it caught, for as long as
+    /// the tether lasts. Each screen draws the enemies it sees, so both players see the same tethers.
+    /// </summary>
+    public static void RunStake(AbilitySO ability, Faction caster, Vector3 point, float radius)
+    {
+        Host.StartCoroutine(Stake(ability, caster, point, radius));
+    }
+
+    private static IEnumerator Stake(AbilitySO ability, Faction caster, Vector3 point, float radius)
+    {
+        var root = new GameObject("Stake");
+        root.transform.position = point;
+        Color tint = ability.tint;
+
+        // The stake itself: a dark shaft with a sharpened tip sunk in the ground and a pale band.
+        Material wood = new Material(LineMaterial) { color = new Color(0.16f, 0.1f, 0.08f, 1f) };
+        Material band = new Material(LineMaterial) { color = Color.Lerp(tint, Color.white, 0.4f) };
+        Part(root.transform, PrimitiveType.Cylinder, new Vector3(0f, 0.45f, 0f), new Vector3(0.09f, 0.45f, 0.09f), wood, Quaternion.Euler(8f, 0f, 6f));
+        Part(root.transform, PrimitiveType.Cylinder, new Vector3(0.03f, 0.78f, 0.04f), new Vector3(0.11f, 0.03f, 0.11f), band, Quaternion.Euler(8f, 0f, 6f));
+        Vector3 top = point + new Vector3(0.06f, 0.85f, 0.08f);
+
+        // The captured enemies: the colliders of what is hostile in reach, and this screen's own
+        // player when the stake is the rival's.
+        var held = new List<Transform>();
+        var heldSet = new HashSet<IDamageable>();
+        int count = Physics.OverlapSphereNonAlloc(point, radius, buffer, ~0, QueryTriggerInteraction.Collide);
+
+        for (int i = 0; i < count && held.Count < 6; i++)
+        {
+            IDamageable target = buffer[i].GetComponentInParent<IDamageable>();
+
+            if (target != null && target.IsAlive && target.Faction != Faction.Neutral && heldSet.Add(target)
+                && FactionUtility.IsHostile(caster, target.Faction))
+            {
+                held.Add(buffer[i].transform);
+            }
+        }
+
+        Camera cam = Camera.main;
+
+        if (cam != null && caster != Faction.Neutral && FactionUtility.IsHostile(caster, MatchNet.LocalFaction)
+            && Flat(cam.transform.position - point) <= radius)
+        {
+            held.Add(cam.transform);
+        }
+
+        var tethers = new LineRenderer[held.Count];
+
+        for (int i = 0; i < held.Count; i++)
+        {
+            tethers[i] = new GameObject("Tether").AddComponent<LineRenderer>();
+            tethers[i].transform.SetParent(root.transform, false);
+            tethers[i].sharedMaterial = LineMaterial;
+            tethers[i].positionCount = 8;
+            tethers[i].useWorldSpace = true;
+            tethers[i].widthMultiplier = 0.035f;
+        }
+
+        LineRenderer ring = new GameObject("Ring").AddComponent<LineRenderer>();
+        ring.transform.SetParent(root.transform, false);
+        ring.sharedMaterial = LineMaterial;
+        ring.loop = true;
+        ring.positionCount = 40;
+        ring.useWorldSpace = true;
+        ring.widthMultiplier = 0.05f;
+
+        float hold = Mathf.Max(0.5f, ability.tetherSeconds);
+        float life = hold + 0.6f;
+
+        for (float t = 0f; t < life; t += Time.deltaTime)
+        {
+            float fade = Mathf.Clamp01((life - t) / 0.6f);
+
+            // The ring flashes out to the capture radius, then settles faint.
+            float r = radius * Mathf.Min(1f, t / 0.15f);
+            Color ringColor = tint;
+            ringColor.a = Mathf.Lerp(0.9f, 0.3f, Mathf.Clamp01(t / 0.5f)) * fade;
+            ring.startColor = ring.endColor = ringColor;
+
+            for (int i = 0; i < ring.positionCount; i++)
+            {
+                float a = i / (float)ring.positionCount * Mathf.PI * 2f;
+                ring.SetPosition(i, point + new Vector3(Mathf.Cos(a) * r, 0.05f, Mathf.Sin(a) * r));
+            }
+
+            for (int i = 0; i < tethers.Length; i++)
+            {
+                bool on = t < hold && held[i] != null;
+                tethers[i].enabled = on;
+
+                if (!on)
+                {
+                    continue;
+                }
+
+                Vector3 end = held[i] == (cam != null ? cam.transform : null)
+                    ? held[i].position + Vector3.down * 0.6f
+                    : held[i].position + Vector3.up * 0.9f;
+
+                // A taut ghostly cord with a slight wave running along it.
+                for (int p = 0; p < 8; p++)
+                {
+                    float k = p / 7f;
+                    Vector3 pos = Vector3.Lerp(top, end, k);
+                    pos += Vector3.up * Mathf.Sin(k * Mathf.PI) * (0.15f + 0.08f * Mathf.Sin(t * 14f + k * 6f));
+                    tethers[i].SetPosition(p, pos);
+                }
+
+                Color c = Color.Lerp(tint, Color.white, 0.25f);
+                c.a = 0.85f;
+                tethers[i].startColor = c;
+                c.a = 0.45f;
+                tethers[i].endColor = c;
+            }
+
+            wood.color = new Color(0.16f, 0.1f, 0.08f, fade);
+            band.color = new Color(band.color.r, band.color.g, band.color.b, fade);
+            yield return null;
+        }
+
+        Object.Destroy(root);
+    }
+
+    private static void Part(Transform parent, PrimitiveType type, Vector3 local, Vector3 scale, Material material, Quaternion rotation)
+    {
+        GameObject go = GameObject.CreatePrimitive(type);
+        go.transform.SetParent(parent, false);
+        go.transform.localPosition = local;
+        go.transform.localRotation = rotation;
+        go.transform.localScale = scale;
+        Object.Destroy(go.GetComponent<Collider>());
+        Renderer r = go.GetComponent<Renderer>();
+        r.sharedMaterial = material;
+        r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+    }
+
     // ------------------------------------------------------------------ storm cloud
 
     /// <summary>
