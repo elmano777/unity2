@@ -14,6 +14,15 @@ public enum AbilityShape
 
     /// <summary>A single hitscan line, like a heavier shot.</summary>
     Line = 3,
+
+    /// <summary>
+    /// A ball that travels in a straight line for its lifetime (Duration), zapping what is inside its
+    /// radius; it crawls while it is touching enemies and stops for good where it meets the world.
+    /// </summary>
+    Projectile = 4,
+
+    /// <summary>The caster becomes a storm: floats up, keeps moving, can't shoot, and lightning hits everything around.</summary>
+    Channel = 5,
 }
 
 /// <summary>
@@ -79,4 +88,66 @@ public class AbilitySO : ScriptableObject
 
     [Tooltip("Maximum distance the player can place an aimed ability.")]
     public float castRange = 20f;
+
+    [Header("Travelling ball (Projectile)")]
+    [Tooltip("Metres per second the ball travels at.")]
+    [Min(0.5f)]
+    public float travelSpeed = 6f;
+
+    [Tooltip("Damage per second to hostiles inside the ball's radius while it travels (the burst at the end deals Damage).")]
+    [Min(0f)]
+    public float damagePerSecond;
+
+    [Tooltip("Seconds between zaps (the ball's, or the storm's damage ticks).")]
+    [Min(0.1f)]
+    public float tickInterval = 0.5f;
+
+    [Tooltip("Share of its speed the ball keeps while it is touching enemies.")]
+    [Range(0.05f, 1f)]
+    public float slowedSpeed = 0.2f;
+
+    [Header("Channel (storm cloud)")]
+    [Tooltip("Seconds the caster stays a storm.")]
+    [Min(0.5f)]
+    public float channelSeconds = 6f;
+
+    [Tooltip("Metres the caster floats up while channelling.")]
+    [Min(0f)]
+    public float riseHeight = 2.5f;
+
+    [Tooltip("Radius the storm grows to (it starts at Radius).")]
+    [Min(0f)]
+    public float radiusEnd = 12f;
+
+    [Tooltip("Metres per second the storm's radius grows.")]
+    [Min(0f)]
+    public float growSpeed = 1f;
+
+    [Header("Movement effects")]
+    [Tooltip("How much slower hostiles caught walk (0.3 = 30 % slower).")]
+    [Range(0f, 0.9f)]
+    public float slow;
+
+    [Min(0f)]
+    public float slowSeconds = 1.5f;
+
+    [Tooltip("Seconds hostiles caught are held near where it landed (a stake's tether). 0 = no tether.")]
+    [Min(0f)]
+    public float tetherSeconds;
+
+    [Tooltip("Metres a tethered hostile can stray from where it landed.")]
+    [Min(0.5f)]
+    public float tetherLength = 4f;
+
+    [Header("Charge")]
+    [Tooltip("Seconds of holding the button for full damage; released early it fires weaker. 0 = fires on press.")]
+    [Min(0f)]
+    public float chargeSeconds;
+
+    [Tooltip("Fraction of Damage an uncharged release deals.")]
+    [Range(0.1f, 1f)]
+    public float unchargedDamage = 0.5f;
+
+    /// <summary>True when the ability holds or slows what it catches.</summary>
+    public bool HasMovementEffect => slow > 0f || tetherSeconds > 0f;
 }

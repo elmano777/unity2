@@ -50,6 +50,49 @@ public class ComfortLocomotion : MonoBehaviour
     /// <summary>Multiplies the walking speed. Raised by the shop's speed item.</summary>
     public float SpeedMultiplier { get; set; } = 1f;
 
+    /// <summary>The transform the stick moves (the player's rig root).</summary>
+    public Transform Rig => rig != null ? rig : transform;
+
+    /// <summary>Walking speed in m/s at full stick before the shop: set from the hero being played.</summary>
+    public float BaseSpeed
+    {
+        get => moveSpeed;
+        set => moveSpeed = Mathf.Max(0.5f, value);
+    }
+
+    private float slowFraction;
+    private float slowUntil;
+    private Vector3 tetherAnchor;
+    private float tetherLength;
+    private float tetherUntil;
+
+    /// <summary>True while a rival's ability slows this player.</summary>
+    public bool IsSlowed => Time.time < slowUntil;
+
+    /// <summary>True while a rival's stake holds this player near it.</summary>
+    public bool IsTethered => Time.time < tetherUntil;
+
+    /// <summary>Slows walking by <paramref name="fraction"/> (0.3 = 30 % slower) for a while; the strongest slow wins.</summary>
+    public void ApplySlow(float fraction, float seconds)
+    {
+        fraction = Mathf.Clamp(fraction, 0f, 0.9f);
+
+        if (!IsSlowed || fraction >= slowFraction)
+        {
+            slowFraction = fraction;
+        }
+
+        slowUntil = Mathf.Max(slowUntil, Time.time + seconds);
+    }
+
+    /// <summary>Keeps the player within <paramref name="length"/> metres (on the ground plane) of <paramref name="anchor"/> for a while.</summary>
+    public void Tether(Vector3 anchor, float length, float seconds)
+    {
+        tetherAnchor = anchor;
+        tetherLength = Mathf.Max(0.5f, length);
+        tetherUntil = Time.time + seconds;
+    }
+
     /// <summary>Raised on every snap turn, so the vignette can blink through the cut.</summary>
     public event System.Action Turned;
 
@@ -116,7 +159,8 @@ public class ComfortLocomotion : MonoBehaviour
 
         Vector3 forward = Vector3.ProjectOnPlane(head.forward, Vector3.up).normalized;
         Vector3 right = Vector3.Cross(Vector3.up, forward);
-        Vector3 step = (forward * stick.y + right * stick.x) * (moveSpeed * SpeedMultiplier * Time.deltaTime);
+        float slow = IsSlowed ? 1f - slowFraction : 1f;
+        Vector3 step = (forward * stick.y + right * stick.x) * (moveSpeed * SpeedMultiplier * slow * Time.deltaTime);
 
         // Cast from the player's actual body (where the head is), not the rig origin, which can
         // be a metre away if the player has walked around their play space.
@@ -132,6 +176,27 @@ public class ComfortLocomotion : MonoBehaviour
         float clampedZ = Mathf.Clamp(headTarget.z, laneZ.x, laneZ.y);
         target.x += clampedX - headTarget.x;
         target.z += clampedZ - headTarget.z;
+
+        // A stake's tether: past its length the stick can't carry the head any further from the
+        // anchor (only along or back towards it). Never a pull: a sudden shove is sickening in VR.
+        if (IsTethered)
+        {
+            Vector3 moved = target - rig.position;
+            Vector3 radial = head.position - tetherAnchor;
+            radial.y = 0f;
+            Vector3 after = radial + new Vector3(moved.x, 0f, moved.z);
+
+            if (after.magnitude > tetherLength && after.magnitude > radial.magnitude && radial.sqrMagnitude > 0.0001f)
+            {
+                Vector3 outward = radial.normalized;
+                float away = Vector3.Dot(moved, outward);
+
+                if (away > 0f)
+                {
+                    target -= outward * away;
+                }
+            }
+        }
 
         rig.position = target;
     }

@@ -80,6 +80,16 @@ public class AbilityFx : MonoBehaviour
                 yield return Burst(ability, to, ability.radius * radiusScale);
                 break;
 
+            case AbilityShape.Projectile:
+            case AbilityShape.Channel:
+                // The ball and the storm draw themselves (AbilityEffects): they live and move for a while.
+                if (ability.loopClip != null || ability.endClip != null)
+                {
+                    StartCoroutine(LoopAndEnd(ability, from));
+                }
+
+                break;
+
             default:
                 yield return Burst(ability, from, ability.radius * radiusScale);
                 break;

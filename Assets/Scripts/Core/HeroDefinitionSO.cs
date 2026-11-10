@@ -48,6 +48,19 @@ public class HeroDefinitionSO : ScriptableObject
     [Tooltip("Abilities in button order: the first on A, the second on X (RF-10).")]
     public AbilitySO[] abilities;
 
+    [Header("Stats (scaled from the original game to this 1v1 VR lane)")]
+    [Tooltip("Hit points of the hero's body at the start of the ritual.")]
+    [Min(1f)]
+    public float maxHealth = 300f;
+
+    [Tooltip("Hit points healed per second while hurt, before shop items.")]
+    [Min(0f)]
+    public float healthRegen;
+
+    [Tooltip("Walking speed in m/s at full stick, before the shop's boots.")]
+    [Min(0.5f)]
+    public float moveSpeed = 3.75f;
+
     [Tooltip("Story lines shown together (one per line) on a black screen after confirming this hero, while entryClip plays.")]
     [TextArea]
     public string[] introLines;

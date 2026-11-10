@@ -68,6 +68,13 @@ public static class DeadlockExpandedMap
     private const float PlazaEdgeZ = -12f;
     private const float CrossStreetStart = -40f, CrossStreetEnd = -34f;
     private const float CourtyardStart = -54f, CourtyardEnd = -44f;
+    // A walk-through passage across both lane blocks beside the first tower (template z), from the
+    // lane to the district alley. The tower shop's kiosk stands in the one on the player's left.
+    public const float TowerPassageStart = -28f, TowerPassageEnd = -22f;
+    public const float LaneBlockInnerX = LaneHalfWidth, LaneBlockOuterX = BlockOuterX;
+    // Buildings cut by the passage are first generated whole into this chunk, which is never
+    // built: that keeps the random sequence, so every other building stays exactly as it was.
+    private const string DiscardChunk = "__discard";
     private const float BaseHeight = 4.5f;
 
     private static readonly Vector3 GuardianPos = new Vector3(-5f, 0f, -24f);
@@ -238,6 +245,8 @@ public static class DeadlockExpandedMap
         }
 
         BuildPlaza();
+        meshes.Remove(DiscardChunk);
+        colliders.Remove(DiscardChunk);
         FlushMeshes(root);
         SetStatic(root);
 
@@ -628,7 +637,7 @@ public static class DeadlockExpandedMap
 
     /// <summary>Buildings side by side along Z from <paramref name="zStart"/> to <paramref name="zEnd"/>.</summary>
     private static void Row(string chunk, Frame f, float x0, float x1, float zStart, float zEnd, Faces sides, Faces first, Faces last,
-        float minHeight, float maxHeight, Random random)
+        float minHeight, float maxHeight, Random random, float gapStart = 0f, float gapEnd = 0f)
     {
         float z = zStart;
 
@@ -645,7 +654,20 @@ public static class DeadlockExpandedMap
             double pick = random.NextDouble();
             Material upper = pick < 0.45 ? brick : pick < 0.75 ? brickDark : concrete;
 
-            Building(chunk, f, x0, x1, z, z + w, height, upper, faces, random);
+            if (gapEnd > gapStart && z < gapEnd && z + w > gapStart)
+            {
+                // Same random draws as the uncut building, then the two pieces either side of the
+                // passage with their own generator, each with a facade on the passage.
+                Building(DiscardChunk, f, x0, x1, z, z + w, height, upper, faces, random);
+                var cut = new Random(Mathf.RoundToInt(z * 100f) + 7919 * f.Half + 104729 * f.Side);
+                if (gapStart - z > 0.5f) Building(chunk, f, x0, x1, z, gapStart, height, upper, (faces & ~Faces.PlusZ) | Faces.PlusZ, cut);
+                if (z + w - gapEnd > 0.5f) Building(chunk, f, x0, x1, gapEnd, z + w, height, upper, faces | Faces.MinusZ, cut);
+            }
+            else
+            {
+                Building(chunk, f, x0, x1, z, z + w, height, upper, faces, random);
+            }
+
             z += w;
         }
     }
@@ -711,7 +733,8 @@ public static class DeadlockExpandedMap
         string chunk = $"{f.HalfName}_{f.District}";
 
         Row(chunk, f, LaneHalfWidth, BlockOuterX, BaseFrontZ, CrossStreetStart, Faces.MinusX | Faces.PlusX, Faces.None, Faces.PlusZ, 10f, 16f, random);
-        Row(chunk, f, LaneHalfWidth, BlockOuterX, CrossStreetEnd, PlazaEdgeZ, Faces.MinusX | Faces.PlusX, Faces.MinusZ, Faces.PlusZ, 12f, 20f, random);
+        Row(chunk, f, LaneHalfWidth, BlockOuterX, CrossStreetEnd, PlazaEdgeZ, Faces.MinusX | Faces.PlusX, Faces.MinusZ, Faces.PlusZ, 12f, 20f, random,
+            TowerPassageStart, TowerPassageEnd);
 
         // Blade signs standing out from the lane facades near Times Square, readable down the street.
         Neon[] colors = { pink, cyan, yellow };
@@ -719,10 +742,13 @@ public static class DeadlockExpandedMap
             ? (f.Side > 0 ? new[] { "HOTEL", "JAZZ", "DINER" } : new[] { "BAR", "DELI", "PAWN" })
             : (f.Side > 0 ? new[] { "CAFE", "OPEN", "MOTEL" } : new[] { "LIVE", "SOULS", "SHOP" });
 
+        // The middle sign used to hang at z -24, where the tower passage now opens.
+        float[] signZ = { -30f, -18f, -14f };
+
         for (int i = 0; i < 3; i++)
         {
             Neon neon = colors[(i + (f.Half > 0 ? 0 : 1) + (f.Side > 0 ? 0 : 2)) % 3];
-            BladeSign(chunk, f.P(LaneHalfWidth - 0.7f, 7.5f, -30f + i * 6f), f.N(Vector3.forward), 1.4f, 5f, neon, Stacked(words[i]));
+            BladeSign(chunk, f.P(LaneHalfWidth - 0.7f, 7.5f, signZ[i]), f.N(Vector3.forward), 1.4f, 5f, neon, Stacked(words[i]));
         }
     }
 

@@ -5,6 +5,7 @@
 - `joints.json`: cabeza, cola y padre de cada hueso, medidos sobre renders ortográficos de la malla.
 - `rig.py`: igual que `Tools/seven_rig/rig.py` pero con su malla `body` (cuerpo, pelo y vestido en una sola) y el arma `gun` rígida a `RightHand`. Pesos con bone heat sobre un proxy de vóxeles. **No corre en el Blender de la Microsoft Store** (acceso denegado desde la línea de comandos): se ejecutó por etapas dentro de una sesión de Blender con el MCP.
 - `vindicta_anim.blend`: escena con el rig pesado y las acciones `Vindicta_Walk` (1 s) y `Vindicta_Idle` (4 s).
+- `walk_upper_body.py`: reconstruye `Vindicta_Walk` desde `Vindicta_Walk_Base` (el caminar original, fake user, no se exporta) y le da vida al torso: cadera que gira hacia la pierna que avanza y baja del lado de la pierna en el aire, pecho que gira al revés (~6°) y se inclina sobre la pierna de apoyo, leve rebote del pecho en cada paso, cuello/cabeza que compensan. Los brazos no se balancean por su cuenta porque sostiene el rifle con las dos manos: el rifle sigue al pecho. Se exporta igual que Seven (ver `Tools/seven_rig/README.md`).
 - `tidy_glb.py`: quita la escena vacía y las animaciones de otro personaje de un glb exportado desde una sesión con varios personajes.
 
 El idle parte de la pose original. El caminar parte de una pose neutra (piernas juntas): cada pierna se gira hasta quedar vertical y sobre eso se balancea; la cadera baja para que el pie de apoyo toque el piso.

@@ -13,7 +13,8 @@ MonoBehaviour:
   m_Name: Vindicta_Estaca
   m_EditorClassIdentifier: 
   abilityName: Estaca
-  description: Clava una estaca que hiere a los enemigos cercanos.
+  description: "Clava una estaca: los enemigos cercanos quedan amarrados a ella y
+    m\xE1s lentos unos segundos."
   icon: {fileID: 0}
   castClip: {fileID: 8300000, guid: d8bf536ca267f454aa92d9edcca1d945, type: 3}
   impactClip: {fileID: 8300000, guid: 11a8f94743b5ddf40968920c7c9f38fe, type: 3}
@@ -27,5 +28,19 @@ MonoBehaviour:
   travelTime: 0.25
   shape: 2
   damage: 55
-  radius: 3
+  radius: 4
   castRange: 25
+  travelSpeed: 6
+  damagePerSecond: 0
+  tickInterval: 0.5
+  slowedSpeed: 0.2
+  channelSeconds: 6
+  riseHeight: 2.5
+  radiusEnd: 12
+  growSpeed: 1
+  slow: 0.4
+  slowSeconds: 2
+  tetherSeconds: 2
+  tetherLength: 4.5
+  chargeSeconds: 0
+  unchargedDamage: 0.5

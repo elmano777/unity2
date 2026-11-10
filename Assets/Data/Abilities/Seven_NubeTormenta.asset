@@ -13,19 +13,34 @@ MonoBehaviour:
   m_Name: Seven_NubeTormenta
   m_EditorClassIdentifier: 
   abilityName: Nube de tormenta
-  description: Descarga rayos sobre todo lo que te rodea.
-  icon: {fileID: 0}
+  description: 'Seven se convierte en una nube de tormenta: flota, puede moverse
+    pero no disparar, y sus rayos golpean a todos los enemigos que ve alrededor.'
+  icon: {fileID: 21300000, guid: b6069b1b5e5add64da54818c5c769571, type: 3}
   castClip: {fileID: 8300000, guid: d8bf536ca267f454aa92d9edcca1d945, type: 3}
   impactClip: {fileID: 8300000, guid: 11a8f94743b5ddf40968920c7c9f38fe, type: 3}
   loopClip: {fileID: 8300000, guid: b35991ea4c874cb1bde27490187dce7e, type: 3}
   endClip: {fileID: 8300000, guid: dca57302ac2547aba6dc15e9d2af5f79, type: 3}
   loopSeconds: 2.5
   effectPrefab: {fileID: 0}
-  tint: {r: 0.6, g: 0.55, b: 1, a: 1}
-  cooldown: 20
+  tint: {r: 0.62, g: 0.75, b: 1, a: 1}
+  cooldown: 30
   duration: 0
   travelTime: 0
-  shape: 1
-  damage: 90
+  shape: 5
+  damage: 0
   radius: 6
   castRange: 0
+  travelSpeed: 6
+  damagePerSecond: 35
+  tickInterval: 0.3
+  slowedSpeed: 0.2
+  channelSeconds: 6
+  riseHeight: 2.5
+  radiusEnd: 12
+  growSpeed: 1
+  slow: 0
+  slowSeconds: 1.5
+  tetherSeconds: 0
+  tetherLength: 4
+  chargeSeconds: 0
+  unchargedDamage: 0.5

@@ -25,6 +25,31 @@ public class Weapon : MonoBehaviour
 
     [SerializeField] private float range = 60f;
 
+    [Tooltip("Bullets per trigger cycle. 1 = plain fire; 3 = a three-round burst, fireInterval apart from one burst to the next.")]
+    [Min(1)]
+    [SerializeField] private int burstCount = 1;
+
+    [Tooltip("Seconds between the bullets inside one burst.")]
+    [SerializeField] private float burstSpacing = 0.07f;
+
+    [Header("Magazine")]
+    [Tooltip("Bullets before reloading. 0 = endless (the old behaviour).")]
+    [Min(0)]
+    [SerializeField] private int magazineSize;
+
+    [Tooltip("Seconds a reload takes. It starts by itself when the magazine runs dry.")]
+    [SerializeField] private float reloadSeconds = 2.3f;
+
+    [Header("Falloff")]
+    [Tooltip("Full damage up to this distance in metres.")]
+    [SerializeField] private float falloffStart = 12f;
+
+    [Tooltip("From here on a bullet only deals Falloff Min of its damage. Set equal to Range for no falloff.")]
+    [SerializeField] private float falloffEnd = 60f;
+
+    [Range(0.1f, 1f)]
+    [SerializeField] private float falloffMin = 1f;
+
     [Tooltip("Layers a shot can hit. Leave out the player's own body to avoid self-hits.")]
     [SerializeField] private LayerMask hitMask = ~0;
 
@@ -81,8 +106,25 @@ public class Weapon : MonoBehaviour
     private InputAction activeFireAction;
     private bool ownsFireAction;
 
-    /// <summary>True while the weapon is off cooldown and can fire.</summary>
-    public bool CanFire => Time.time >= nextFireTime;
+    private int ammo = -1;
+    private float reloadDoneAt;
+    private int burstLeft;
+    private float nextBurstShot;
+
+    /// <summary>True while the weapon is off cooldown, loaded and can fire.</summary>
+    public bool CanFire => Time.time >= nextFireTime && !IsReloading && burstLeft == 0;
+
+    /// <summary>Bullets left in the magazine (equal to the size when the gun has no magazine).</summary>
+    public int Ammo => magazineSize > 0 ? Mathf.Max(0, ammo) : 0;
+
+    /// <summary>Bullets a full magazine holds; 0 for an endless gun.</summary>
+    public int MagazineSize => magazineSize;
+
+    /// <summary>True while the magazine is being refilled.</summary>
+    public bool IsReloading => magazineSize > 0 && Time.time < reloadDoneAt;
+
+    /// <summary>0..1 progress of the reload in course, 1 when not reloading.</summary>
+    public float ReloadProgress => IsReloading ? 1f - (reloadDoneAt - Time.time) / Mathf.Max(0.01f, reloadSeconds) : 1f;
 
     /// <summary>Side this weapon shoots for. Set at runtime when the online rival plays the Sapphire side.</summary>
     public Faction Owner
@@ -117,6 +159,22 @@ public class Weapon : MonoBehaviour
         {
             tracer.enabled = false;
         }
+
+        ammo = magazineSize;
+    }
+
+    /// <summary>Starts refilling the magazine (it also starts by itself when it runs dry).</summary>
+    public void Reload()
+    {
+        if (magazineSize <= 0 || IsReloading || ammo >= magazineSize)
+        {
+            return;
+        }
+
+        burstLeft = 0;
+        reloadDoneAt = Time.time + reloadSeconds;
+        ExperienceCues.Play("reload", 0.5f);
+        HapticFeedback.Pulse(hapticHand, 0.2f, 0.08f);
     }
 
     private void OnEnable()
@@ -164,6 +222,21 @@ public class Weapon : MonoBehaviour
 
     private void Update()
     {
+        if (magazineSize > 0 && ammo < magazineSize && reloadDoneAt > 0f && Time.time >= reloadDoneAt)
+        {
+            ammo = magazineSize;
+            reloadDoneAt = 0f;
+            HapticFeedback.Pulse(hapticHand, 0.35f, 0.05f);
+        }
+
+        // The rest of a burst follows on its own, trigger held or not.
+        if (burstLeft > 0 && Time.time >= nextBurstShot)
+        {
+            burstLeft--;
+            nextBurstShot = Time.time + burstSpacing;
+            FireOne();
+        }
+
         if (automatic && activeFireAction != null && activeFireAction.IsPressed())
         {
             TryFire();
@@ -187,12 +260,43 @@ public class Weapon : MonoBehaviour
     /// <returns>True when a shot actually went out.</returns>
     public bool TryFire()
     {
-        if (!CanFire)
+        // Turned into a storm (Seven's ultimate): no gun until it ends.
+        if (!CanFire || AbilityCaster.LocalChanneling)
         {
             return false;
         }
 
+        if (magazineSize > 0 && ammo <= 0)
+        {
+            Reload();
+            return false;
+        }
+
         nextFireTime = Time.time + fireInterval;
+        FireOne();
+
+        if (burstCount > 1)
+        {
+            burstLeft = burstCount - 1;
+            nextBurstShot = Time.time + burstSpacing;
+        }
+
+        return true;
+    }
+
+    /// <summary>One bullet: spends a round, hits, and starts the reload when that was the last.</summary>
+    private void FireOne()
+    {
+        if (magazineSize > 0)
+        {
+            if (ammo <= 0)
+            {
+                burstLeft = 0;
+                return;
+            }
+
+            ammo--;
+        }
 
         Vector3 origin = muzzle.position;
         Vector3 direction = muzzle.forward;
@@ -209,7 +313,21 @@ public class Weapon : MonoBehaviour
         GameEvents.RaiseShotFired();
         Shot?.Invoke(origin, endPoint);
 
-        return true;
+        if (magazineSize > 0 && ammo <= 0)
+        {
+            Reload();
+        }
+    }
+
+    /// <summary>Share of a bullet's damage left at <paramref name="distance"/> metres.</summary>
+    private float Falloff(float distance)
+    {
+        if (falloffMin >= 1f || falloffEnd <= falloffStart)
+        {
+            return 1f;
+        }
+
+        return Mathf.Lerp(1f, falloffMin, Mathf.InverseLerp(falloffStart, falloffEnd, distance));
     }
 
     private void ApplyHit(RaycastHit hit, Vector3 direction)
@@ -220,9 +338,10 @@ public class Weapon : MonoBehaviour
         if (target != null && target.IsAlive)
         {
             // The shop's passive bonuses (close, long range, minions) and the weapon investment apply here.
+            float baseDamage = damage * Falloff(hit.distance);
             float amount = PlayerUpgrades.Instance != null
-                ? PlayerUpgrades.Instance.WeaponDamage(damage, hit.distance, hit.collider)
-                : damage;
+                ? PlayerUpgrades.Instance.WeaponDamage(baseDamage, hit.distance, hit.collider)
+                : baseDamage;
 
             DamageInfo info = new DamageInfo(amount, owner, gameObject)
                 .AtImpact(hit.point, direction);

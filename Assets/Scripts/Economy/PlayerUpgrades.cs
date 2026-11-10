@@ -28,7 +28,12 @@ public class PlayerUpgrades : MonoBehaviour
         new float[] { 7, 11, 15, 19, 38, 45, 52 },
     };
 
-    private const float BaseBodyHealth = 300f;
+    /// <summary>The hero's starting hit points: the vitality investment bonus is a share of it.</summary>
+    private float baseBodyHealth = 300f;
+
+    /// <summary>The hero's own regeneration, healed quietly while hurt (shop regen adds to it with its sound).</summary>
+    private float heroRegen;
+    private float quietHeal;
 
     private readonly Dictionary<ShopItemSO, int> stacks = new Dictionary<ShopItemSO, int>();
     private readonly int[] invested = new int[3];
@@ -71,6 +76,58 @@ public class PlayerUpgrades : MonoBehaviour
     private void OnDisable()
     {
         GameEvents.DamageDealt -= OnDamageDealt;
+    }
+
+    /// <summary>
+    /// The hero's own numbers: walking speed, regeneration and, offline, the body's hit points
+    /// (online the host sets those when it learns the hero, see <see cref="NetworkPlayer"/>).
+    /// </summary>
+    private void Start()
+    {
+        AbilityCaster caster = GetComponentInChildren<AbilityCaster>(true) ?? FindObjectOfType<AbilityCaster>();
+        HeroDefinitionSO hero = caster != null ? caster.Hero : null;
+
+        if (hero == null && GameSession.Instance != null)
+        {
+            hero = GameSession.Instance.SelectedHero;
+        }
+
+        if (hero == null)
+        {
+            return;
+        }
+
+        baseBodyHealth = hero.maxHealth;
+        heroRegen = hero.healthRegen;
+
+        foreach (ComfortLocomotion locomotion in GetComponentsInChildren<ComfortLocomotion>(true))
+        {
+            locomotion.BaseSpeed = hero.moveSpeed;
+        }
+
+        if (NetworkPlayer.Local == null)
+        {
+            foreach (Health body in GetComponentsInChildren<Health>(true))
+            {
+                if (!Mathf.Approximately(body.MaxHealth, hero.maxHealth))
+                {
+                    body.AddMaxHealth(hero.maxHealth - body.MaxHealth);
+                }
+            }
+        }
+    }
+
+    /// <summary>The local player's hit points, or null.</summary>
+    private Health LocalBody()
+    {
+        NetworkPlayer local = NetworkPlayer.Local;
+
+        if (local != null && local.IsSpawned)
+        {
+            return local.Body;
+        }
+
+        return GetComponentInChildren<Health>(true);
     }
 
     private void OnDestroy()
@@ -238,7 +295,7 @@ public class PlayerUpgrades : MonoBehaviour
     /// <summary>The health investment bonus is a percentage of the base body health, granted as it grows.</summary>
     private void ApplyInvestedHealth()
     {
-        float target = InvestmentBonus(ShopCategory.Vitality) * BaseBodyHealth;
+        float target = InvestmentBonus(ShopCategory.Vitality) * baseBodyHealth;
         float extra = target - healthFromInvestment;
 
         if (extra >= 1f)
@@ -288,10 +345,24 @@ public class PlayerUpgrades : MonoBehaviour
 
     private void Update()
     {
-        if (regenPerSecond > 0f && Time.time >= nextRegen)
+        if ((regenPerSecond > 0f || heroRegen > 0f) && Time.time >= nextRegen)
         {
             nextRegen = Time.time + 1f;
-            pendingHeal += regenPerSecond;
+            Health body = LocalBody();
+            bool hurt = body != null && body.IsAlive && body.CurrentHealth < body.MaxHealth - 0.5f;
+
+            if (hurt)
+            {
+                pendingHeal += regenPerSecond;
+                quietHeal += heroRegen;
+            }
+        }
+
+        // The hero's own regeneration is silent; sent every couple of seconds.
+        if (quietHeal >= 2f)
+        {
+            HealBody(quietHeal);
+            quietHeal = 0f;
         }
 
         // Healing is sent in small batches rather than once per bullet.

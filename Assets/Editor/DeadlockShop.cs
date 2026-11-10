@@ -156,18 +156,232 @@ public static class DeadlockShop
 
         foreach (GameObject root in UnityEngine.SceneManagement.SceneManager.GetActiveScene().GetRootGameObjects())
         {
-            if (root.name == "Shop_Amber" || root.name == "Shop_Sapphire")
+            if (root.name.StartsWith("Shop_") || root.name.StartsWith("Kiosk_"))
             {
                 Object.DestroyImmediate(root);
             }
         }
 
-        // Inside the spawn room (step 26), against its back wall and turned towards the respawn pad.
-        // Template spots on step 26's layout, stretched like the map (DeadlockExpandedMap.World).
-        Vector3 amberShop = DeadlockExpandedMap.World(4.2f, 0f, -91.2f), amberLook = DeadlockExpandedMap.World(4.2f, 0f, -86f);
-        BuildBoard("Shop_Amber", Faction.Player, amberShop, amberLook, items);
-        BuildBoard("Shop_Sapphire", Faction.Enemy, -amberShop, -amberLook, items);
+        KioskMaterials();
+
+        // The Curiosity Store: a big booth inside the spawn room (step 26), against its back wall and
+        // turned towards the respawn pad. Template spots on step 26's layout, stretched like the map.
+        Vector3 store = DeadlockExpandedMap.World(4.2f, 0f, -91.85f);
+        BuildKiosk("Kiosk_Store_Amber", Faction.Player, store, Quaternion.Euler(0f, 180f, 0f), items, StoreKiosk);
+        BuildKiosk("Kiosk_Store_Sapphire", Faction.Enemy, -store, Quaternion.identity, items, StoreKiosk);
+
+        // A small booth in the passage beside each side's first tower (step 26 cuts it through the
+        // lane blocks), in the block on the player's left, backed against the wall on the base side.
+        Vector3 booth = DeadlockExpandedMap.World(-11f, 0f, DeadlockExpandedMap.TowerPassageStart + 0.12f);
+        BuildKiosk("Kiosk_Tower_Amber", Faction.Player, booth, Quaternion.Euler(0f, 180f, 0f), items, TowerKiosk);
+        BuildKiosk("Kiosk_Tower_Sapphire", Faction.Enemy, -booth, Quaternion.identity, items, TowerKiosk);
         return true;
+    }
+
+    // ------------------------------------------------------------------ kiosks
+
+    private sealed class KioskSpec
+    {
+        public float Width, Depth, Height, CounterHeight, BoardScale, BoardY, SignHeight, TitleSize, SubtitleSize, OpenRadius;
+        public string Title, Subtitle;
+        public bool NeedsTower, HeroStand, Curiosities;
+    }
+
+    private static readonly KioskSpec StoreKiosk = new KioskSpec
+    {
+        Width = 5.6f, Depth = 2.2f, Height = 3.8f, CounterHeight = 1.0f, BoardScale = 1f, BoardY = 0.2f,
+        SignHeight = 0.85f, TitleSize = 4.2f, SubtitleSize = 1.15f, OpenRadius = 8.5f,
+        Title = "CURIOSITY STORE", Subtitle = "RAREZAS · ARMAS · ESPÍRITU · VITALIDAD",
+        HeroStand = true, Curiosities = true,
+    };
+
+    private static readonly KioskSpec TowerKiosk = new KioskSpec
+    {
+        Width = 3.2f, Depth = 1.5f, Height = 3.0f, CounterHeight = 1.0f, BoardScale = 0.8f, BoardY = 0.38f,
+        SignHeight = 0.6f, TitleSize = 1.7f, SubtitleSize = 0.5f, OpenRadius = 6f,
+        Title = "TIENDA DE LA TORRE", Subtitle = "ABIERTA MIENTRAS TU TORRE AGUANTE",
+        NeedsTower = true,
+    };
+
+    private static Material kWood, kTrim, kShutter, kSign, kBrass, kLamp, kCream, kJar, kJarGreen;
+    private static readonly Dictionary<Faction, Material> kStripe = new Dictionary<Faction, Material>();
+
+    private static void KioskMaterials()
+    {
+        kWood = DeadlockSceneKit.Lit("Kiosk_Wood", new Color(0.36f, 0.22f, 0.12f), 0.35f);
+        kTrim = DeadlockSceneKit.Lit("Kiosk_Trim", new Color(0.15f, 0.09f, 0.05f), 0.4f);
+        kShutter = DeadlockSceneKit.Lit("Kiosk_Shutter", new Color(0.4f, 0.42f, 0.43f), 0.55f, 0.6f);
+        kSign = DeadlockSceneKit.Lit("Kiosk_Sign", new Color(0.08f, 0.055f, 0.045f), 0.5f);
+        kBrass = DeadlockSceneKit.Lit("Kiosk_Brass", new Color(0.8f, 0.6f, 0.3f), 0.7f, 0.8f);
+        kLamp = DeadlockSceneKit.Lit("Kiosk_Lamp", new Color(1f, 0.85f, 0.6f), 0.5f, 0f, null, new Color(2.4f, 1.7f, 0.9f));
+        kCream = DeadlockSceneKit.Lit("Kiosk_Cream", new Color(0.92f, 0.86f, 0.72f), 0.3f);
+        kJar = DeadlockSceneKit.Lit("Kiosk_Jar", new Color(0.35f, 0.8f, 0.9f), 0.85f, 0f, null, new Color(0.25f, 0.9f, 1.1f));
+        kJarGreen = DeadlockSceneKit.Lit("Kiosk_JarGreen", new Color(0.4f, 0.9f, 0.45f), 0.85f, 0f, null, new Color(0.3f, 1.1f, 0.4f));
+        kStripe[Faction.Player] = DeadlockSceneKit.Lit("Kiosk_Stripe_Amber", new Color(0.86f, 0.42f, 0.1f), 0.3f);
+        kStripe[Faction.Enemy] = DeadlockSceneKit.Lit("Kiosk_Stripe_Sapphire", new Color(0.14f, 0.33f, 0.8f), 0.3f);
+    }
+
+    /// <summary>
+    /// A wooden booth around a shop board: back and side walls, a counter, a striped awning, a sign
+    /// over the front and a roll-up shutter that <see cref="ShopKiosk"/> raises when the player comes
+    /// close. Local -Z is the front (where the player stands), as for the board.
+    /// </summary>
+    private static void BuildKiosk(string name, Faction side, Vector3 position, Quaternion rotation, ShopItemSO[] items, KioskSpec k)
+    {
+        var rootGo = new GameObject(name);
+        Transform t = rootGo.transform;
+        t.SetPositionAndRotation(position, rotation);
+        int ground = LayerMask.NameToLayer(DeadlockSetupTools.GroundLayer);
+
+        float w = k.Width, d = k.Depth, h = k.Height, ch = k.CounterHeight;
+        var solid = new List<GameObject>();
+
+        // Shell.
+        DeadlockSceneKit.Box("Floor", t, new Vector3(0f, 0.05f, -d / 2f), new Vector3(w, 0.1f, d + 0.1f), kTrim, 1f, false);
+        solid.Add(DeadlockSceneKit.Box("Back", t, new Vector3(0f, h / 2f, 0.12f), new Vector3(w, h, 0.12f), kWood));
+
+        foreach (int s in new[] { -1, 1 })
+        {
+            solid.Add(DeadlockSceneKit.Box("Side", t, new Vector3(s * (w / 2f - 0.06f), h / 2f, -d / 2f + 0.06f), new Vector3(0.12f, h, d + 0.12f), kWood));
+            solid.Add(DeadlockSceneKit.Box("Post", t, new Vector3(s * (w / 2f - 0.02f), h / 2f, -d - 0.04f), new Vector3(0.2f, h, 0.2f), kTrim));
+            // A lantern on each front post.
+            DeadlockSceneKit.Box("LanternCap", t, new Vector3(s * (w / 2f + 0.05f), h - 0.55f, -d - 0.22f), new Vector3(0.2f, 0.05f, 0.2f), kBrass, 1f, false);
+            DeadlockSceneKit.Box("Lantern", t, new Vector3(s * (w / 2f + 0.05f), h - 0.7f, -d - 0.22f), new Vector3(0.14f, 0.24f, 0.14f), kLamp, 1f, false);
+        }
+
+        solid.Add(DeadlockSceneKit.Box("Counter", t, new Vector3(0f, ch / 2f, -d + 0.25f), new Vector3(w - 0.24f, ch, 0.45f), kWood));
+        DeadlockSceneKit.Box("CounterTop", t, new Vector3(0f, ch + 0.03f, -d + 0.2f), new Vector3(w - 0.08f, 0.06f, 0.62f), kTrim, 1f, false);
+        DeadlockSceneKit.Box("CounterTrim", t, new Vector3(0f, ch - 0.12f, -d + 0.02f), new Vector3(w - 0.24f, 0.04f, 0.02f), kBrass, 1f, false);
+        DeadlockSceneKit.Box("Roof", t, new Vector3(0f, h + 0.06f, -d / 2f + 0.05f), new Vector3(w + 0.3f, 0.12f, d + 0.5f), kTrim, 1f, false);
+
+        // Striped awning sloping down over the counter, with a scalloped valance.
+        var awning = new GameObject("Awning").transform;
+        awning.SetParent(t, false);
+        awning.localPosition = new Vector3(0f, h - 0.02f, -d - 0.12f);
+        awning.localRotation = Quaternion.Euler(-24f, 0f, 0f);
+        int stripes = Mathf.Max(5, Mathf.RoundToInt(w / 0.4f) | 1);
+        float sw = (w + 0.3f) / stripes;
+
+        for (int i = 0; i < stripes; i++)
+        {
+            float x = -(w + 0.3f) / 2f + sw * (i + 0.5f);
+            Material m = i % 2 == 0 ? kStripe[side] : kCream;
+            DeadlockSceneKit.Box("Stripe", awning, new Vector3(x, 0f, -0.55f), new Vector3(sw, 0.03f, 1.1f), m, 1f, false);
+            DeadlockSceneKit.Box("Scallop", awning, new Vector3(x, -0.09f, -1.09f), new Vector3(sw * 0.86f, 0.18f, 0.025f), m, 1f, false);
+        }
+
+        // Sign over the front.
+        float signY = h + 0.12f + k.SignHeight / 2f;
+        DeadlockSceneKit.Box("SignBoard", t, new Vector3(0f, signY, -d - 0.02f), new Vector3(w * 0.92f, k.SignHeight, 0.1f), kSign, 1f, false);
+        DeadlockSceneKit.Box("SignTrimTop", t, new Vector3(0f, signY + k.SignHeight / 2f, -d - 0.08f), new Vector3(w * 0.92f, 0.04f, 0.03f), kBrass, 1f, false);
+        DeadlockSceneKit.Box("SignTrimBottom", t, new Vector3(0f, signY - k.SignHeight / 2f, -d - 0.08f), new Vector3(w * 0.92f, 0.04f, 0.03f), kBrass, 1f, false);
+        DeadlockSceneKit.Text("Title", t, new Vector3(0f, signY + k.SignHeight * 0.1f, -d - 0.085f), k.Title, k.TitleSize, Gold,
+            new Vector2(w * 0.88f, k.SignHeight * 0.65f), FontStyles.Bold);
+        DeadlockSceneKit.Text("Subtitle", t, new Vector3(0f, signY - k.SignHeight * 0.3f, -d - 0.085f), k.Subtitle, k.SubtitleSize, Cream,
+            new Vector2(w * 0.88f, k.SignHeight * 0.25f));
+
+        // Status on the counter front ("acércate", "abierto", "cerrada").
+        TextMeshPro status = DeadlockSceneKit.Text("Status", t, new Vector3(0f, ch * 0.55f, -d + 0.015f), "ACÉRCATE PARA COMPRAR",
+            1.2f, Cream, new Vector2(w - 0.4f, 0.3f), FontStyles.Bold);
+
+        // The board, scaled to the booth, against the back wall.
+        GameObject board = BuildBoard($"{name}_Board", side, Vector3.zero, Vector3.back, items, false, k.HeroStand, false);
+        board.transform.SetParent(t, false);
+        board.transform.localPosition = new Vector3(0f, k.BoardY, -0.02f);
+        board.transform.localRotation = Quaternion.identity;
+        board.transform.localScale = Vector3.one * k.BoardScale;
+
+        if (k.HeroStand)
+        {
+            // Keep the hero inside the booth, left of the board, at full size.
+            Transform stand = board.transform.Find("HeroStand");
+            stand.SetParent(t, true);
+            stand.localPosition = new Vector3(-w / 2f + 0.62f, 0.1f, -d * 0.45f);
+            stand.localScale = Vector3.one;
+        }
+
+        if (k.Curiosities)
+        {
+            Curiosities(t, w, d);
+        }
+
+        // Roll-up shutter between the roof and the counter, pivoted at its top edge.
+        float shutterTop = h - 0.05f, shutterBottom = ch + 0.06f, sh = shutterTop - shutterBottom;
+        DeadlockSceneKit.Box("ShutterBox", t, new Vector3(0f, h - 0.13f, -d + 0.04f), new Vector3(w - 0.3f, 0.24f, 0.26f), kTrim, 1f, false);
+        var shutter = new GameObject("Shutter").transform;
+        shutter.SetParent(t, false);
+        shutter.localPosition = new Vector3(0f, shutterTop, -d + 0.06f);
+        GameObject panel = DeadlockSceneKit.Box("Panel", shutter, new Vector3(0f, -sh / 2f, 0f), new Vector3(w - 0.36f, sh, 0.04f), kShutter);
+        panel.layer = ground;
+
+        for (float y = 0.18f; y < sh - 0.05f; y += 0.18f)
+        {
+            DeadlockSceneKit.Box("Slat", shutter, new Vector3(0f, -y, -0.025f), new Vector3(w - 0.36f, 0.025f, 0.02f), kTrim, 1f, false);
+        }
+
+        DeadlockSceneKit.Box("Handle", shutter, new Vector3(0f, -sh + 0.06f, -0.04f), new Vector3(0.5f, 0.05f, 0.05f), kBrass, 1f, false);
+
+        Light lamp = DeadlockSceneKit.PointLight("Lamp", t, new Vector3(0f, h - 0.45f, -d * 0.7f), new Color(1f, 0.82f, 0.6f), 1.6f, k.Width + 1.5f);
+        var audio = rootGo.AddComponent<AudioSource>();
+        audio.playOnAwake = false;
+        audio.spatialBlend = 1f;
+        audio.maxDistance = 20f;
+
+        foreach (GameObject go in solid)
+        {
+            go.layer = ground;
+        }
+
+        ShopKiosk kiosk = rootGo.AddComponent<ShopKiosk>();
+        var so = new SerializedObject(kiosk);
+        so.FindProperty("faction").enumValueIndex = (int)side;
+        so.FindProperty("content").objectReferenceValue = board;
+        so.FindProperty("shutter").objectReferenceValue = shutter;
+        so.FindProperty("openRadius").floatValue = k.OpenRadius;
+        so.FindProperty("needsTower").boolValue = k.NeedsTower;
+        so.FindProperty("statusLabel").objectReferenceValue = status;
+        so.FindProperty("lamp").objectReferenceValue = lamp;
+        so.FindProperty("audioSource").objectReferenceValue = audio;
+        so.FindProperty("openClip").objectReferenceValue = AssetDatabase.LoadAssetAtPath<AudioClip>(BuyClipPath);
+        so.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    /// <summary>Shelves of odd wares on the right of the big store: glowing jars, boxes and a globe.</summary>
+    private static void Curiosities(Transform t, float w, float d)
+    {
+        float x = w / 2f - 0.75f;
+        var random = new System.Random(7);
+
+        for (int row = 0; row < 3; row++)
+        {
+            float y = 1.15f + row * 0.55f;
+            DeadlockSceneKit.Box("Shelf", t, new Vector3(x, y, -0.18f), new Vector3(1.1f, 0.04f, 0.36f), kTrim, 1f, false);
+
+            for (int i = 0; i < 3; i++)
+            {
+                float px = x - 0.36f + i * 0.36f;
+                double pick = random.NextDouble();
+
+                if (pick < 0.55)
+                {
+                    float jh = 0.22f + (float)random.NextDouble() * 0.12f;
+                    DeadlockSceneKit.Primitive(PrimitiveType.Cylinder, "Jar", t, new Vector3(px, y + 0.02f + jh / 2f, -0.18f),
+                        new Vector3(0.14f, jh / 2f, 0.14f), random.NextDouble() < 0.5 ? kJar : kJarGreen);
+                    DeadlockSceneKit.Primitive(PrimitiveType.Cylinder, "Lid", t, new Vector3(px, y + 0.03f + jh, -0.18f),
+                        new Vector3(0.15f, 0.015f, 0.15f), kBrass);
+                }
+                else
+                {
+                    float bs = 0.18f + (float)random.NextDouble() * 0.08f;
+                    DeadlockSceneKit.Box("Box", t, new Vector3(px, y + 0.02f + bs / 2f, -0.18f), new Vector3(bs, bs, bs), kWood, 1f, false);
+                }
+            }
+        }
+
+        // A brass globe on the counter and a crate stack by the side wall.
+        DeadlockSceneKit.Primitive(PrimitiveType.Sphere, "Globe", t, new Vector3(w / 2f - 0.55f, 1.25f, -d + 0.22f), Vector3.one * 0.3f, kBrass);
+        DeadlockSceneKit.Box("Crate", t, new Vector3(w / 2f - 0.5f, 0.3f, -0.55f), new Vector3(0.55f, 0.5f, 0.5f), kWood, 1f, false);
+        DeadlockSceneKit.Box("Crate", t, new Vector3(w / 2f - 0.48f, 0.72f, -0.55f), new Vector3(0.4f, 0.34f, 0.4f), kWood, 1f, false);
     }
 
     // ------------------------------------------------------------------ materials
@@ -292,7 +506,8 @@ public static class DeadlockShop
 
     // ------------------------------------------------------------------ board
 
-    private static void BuildBoard(string name, Faction side, Vector3 position, Vector3 lookFrom, ShopItemSO[] items)
+    private static GameObject BuildBoard(string name, Faction side, Vector3 position, Vector3 lookFrom, ShopItemSO[] items,
+        bool posts = true, bool heroStandOn = true, bool light = true)
     {
         var root = new GameObject(name);
         Vector3 away = position - lookFrom;
@@ -307,7 +522,7 @@ public static class DeadlockShop
         GameObject frame = DeadlockSceneKit.Box("Frame", t, new Vector3(0f, PaperCenterY, 0.04f), new Vector3(PaperWidth + 0.16f, PaperHeight + 0.16f, 0.08f), wood);
         frame.layer = ground;
 
-        foreach (float x in new[] { -1.15f, 1.15f })
+        foreach (float x in posts ? new[] { -1.15f, 1.15f } : new float[0])
         {
             GameObject post = DeadlockSceneKit.Box("Post", t, new Vector3(x, (PaperCenterY - PaperHeight / 2f) / 2f, 0.04f), new Vector3(0.1f, PaperCenterY - PaperHeight / 2f, 0.1f), wood);
             post.layer = ground;
@@ -362,17 +577,23 @@ public static class DeadlockShop
         Renderer detailIcon = DetailPanel(t, out TMP_Text title, out TMP_Text body, out TMP_Text hint);
         GameObject sealedOverlay = Sealed(t);
 
-        var heroStand = new GameObject("HeroStand");
-        heroStand.transform.SetParent(t, false);
-        heroStand.transform.localPosition = new Vector3(-PaperWidth / 2f - 0.75f, 0f, -0.35f);
-        heroStand.transform.localRotation = Quaternion.Euler(0f, 160f, 0f);
-        ShopHeroStand stand = heroStand.AddComponent<ShopHeroStand>();
-        var standSo = new SerializedObject(stand);
-        standSo.FindProperty("board").objectReferenceValue = board;
-        standSo.FindProperty("fallbackHero").objectReferenceValue = AssetDatabase.LoadAssetAtPath<HeroDefinitionSO>(SevenPath);
-        standSo.ApplyModifiedPropertiesWithoutUndo();
+        if (heroStandOn)
+        {
+            var heroStand = new GameObject("HeroStand");
+            heroStand.transform.SetParent(t, false);
+            heroStand.transform.localPosition = new Vector3(-PaperWidth / 2f - 0.75f, 0f, -0.35f);
+            heroStand.transform.localRotation = Quaternion.Euler(0f, 160f, 0f);
+            ShopHeroStand stand = heroStand.AddComponent<ShopHeroStand>();
+            var standSo = new SerializedObject(stand);
+            standSo.FindProperty("board").objectReferenceValue = board;
+            standSo.FindProperty("fallbackHero").objectReferenceValue = AssetDatabase.LoadAssetAtPath<HeroDefinitionSO>(SevenPath);
+            standSo.ApplyModifiedPropertiesWithoutUndo();
+        }
 
-        DeadlockSceneKit.PointLight("Light", t, new Vector3(0f, 2.4f, -1.4f), new Color(1f, 0.85f, 0.65f), 1.4f, 4.5f);
+        if (light)
+        {
+            DeadlockSceneKit.PointLight("Light", t, new Vector3(0f, 2.4f, -1.4f), new Color(1f, 0.85f, 0.65f), 1.4f, 4.5f);
+        }
 
         var so = new SerializedObject(board);
         so.FindProperty("faction").enumValueIndex = (int)side;
@@ -396,6 +617,8 @@ public static class DeadlockShop
         {
             pages[i].SetActive(false);
         }
+
+        return root;
     }
 
     /// <summary>The name plaque in the top left: a dark board with a gold rim, like a shop sign.</summary>

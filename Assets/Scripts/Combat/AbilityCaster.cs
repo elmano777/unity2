@@ -43,6 +43,9 @@ public class AbilityCaster : MonoBehaviour
     /// <summary>Abilities of the hero being played, in button order.</summary>
     public IReadOnlyList<AbilitySO> Abilities => abilities;
 
+    /// <summary>The hero being played (the selected one, or the fallback when the Lane is played directly).</summary>
+    public HeroDefinitionSO Hero { get; private set; }
+
     /// <summary>Button names in the same order as <see cref="Abilities"/>.</summary>
     public static readonly string[] ButtonNames = { "A", "X" };
 
@@ -51,6 +54,8 @@ public class AbilityCaster : MonoBehaviour
         HeroDefinitionSO hero = GameSession.Instance != null && GameSession.Instance.SelectedHero != null
             ? GameSession.Instance.SelectedHero
             : fallbackHero;
+
+        Hero = hero;
 
         if (hero != null && hero.abilities != null)
         {
@@ -79,9 +84,91 @@ public class AbilityCaster : MonoBehaviour
         for (int i = 0; i < actions.Length; i++)
         {
             int index = i;
-            actions[i].performed += _ => TryCast(index);
+            actions[i].started += _ => OnPress(index);
+            actions[i].canceled += _ => OnRelease(index);
             actions[i].Enable();
         }
+    }
+
+    // ---- Charged abilities (Vindicta's Assassinate): hold to charge, release to fire ----
+
+    private int charging = -1;
+    private float chargeStart;
+    private float nextChargePulse;
+    private bool chargeFull;
+
+    /// <summary>0..1 while an ability is being charged, else 0. For the HUD.</summary>
+    public float ChargeAmount => charging >= 0 && abilities[charging] != null && abilities[charging].chargeSeconds > 0f
+        ? Mathf.Clamp01((Time.time - chargeStart) / abilities[charging].chargeSeconds)
+        : 0f;
+
+    private void OnPress(int index)
+    {
+        if (index >= abilities.Length || abilities[index] == null)
+        {
+            return;
+        }
+
+        if (abilities[index].chargeSeconds <= 0f)
+        {
+            TryCast(index);
+            return;
+        }
+
+        if (charging < 0 && CanStart(index))
+        {
+            charging = index;
+            chargeStart = Time.time;
+            chargeFull = false;
+            nextChargePulse = 0f;
+        }
+    }
+
+    private void OnRelease(int index)
+    {
+        if (charging != index)
+        {
+            return;
+        }
+
+        float k = ChargeAmount;
+        charging = -1;
+        AbilitySO ability = abilities[index];
+        TryCast(index, Mathf.Lerp(ability.unchargedDamage, 1f, k));
+    }
+
+    private void Update()
+    {
+        if (charging < 0)
+        {
+            return;
+        }
+
+        // A rising buzz in the hand while it charges, and a firm knock when it is full.
+        float k = ChargeAmount;
+
+        if (k >= 1f && !chargeFull)
+        {
+            chargeFull = true;
+            HapticFeedback.Pulse(HapticFeedback.Hand.Right, 0.8f, 0.1f);
+        }
+        else if (k < 1f && Time.time >= nextChargePulse)
+        {
+            nextChargePulse = Time.time + 0.12f;
+            HapticFeedback.Pulse(HapticFeedback.Hand.Right, Mathf.Lerp(0.08f, 0.4f, k), 0.04f);
+        }
+    }
+
+    private bool CanStart(int index)
+    {
+        if (Time.time < readyAt[index])
+        {
+            HapticFeedback.Pulse(HapticFeedback.Hand.Right, 0.1f, 0.03f);
+            ExperienceCues.Play(ExperienceCues.NotReady, 0.5f);
+            return false;
+        }
+
+        return MatchManager.Instance == null || MatchManager.Instance.State == MatchState.Playing;
     }
 
     private void OnDisable()
@@ -113,14 +200,17 @@ public class AbilityCaster : MonoBehaviour
     /// can cast without the controller.
     /// </summary>
     /// <returns>True when the ability went off.</returns>
-    public bool TryCast(int index)
+    public bool TryCast(int index) => TryCast(index, 1f);
+
+    /// <summary>Casts with its damage scaled by <paramref name="damageScale"/> (a partly charged shot).</summary>
+    public bool TryCast(int index, float damageScale)
     {
         if (!isActiveAndEnabled || index < 0 || index >= abilities.Length || abilities[index] == null)
         {
             return false;
         }
 
-        if (Time.time < readyAt[index])
+        if (Time.time < readyAt[index] || IsChanneling)
         {
             HapticFeedback.Pulse(HapticFeedback.Hand.Right, 0.1f, 0.03f);
             ExperienceCues.Play(ExperienceCues.NotReady, 0.5f);
@@ -137,6 +227,7 @@ public class AbilityCaster : MonoBehaviour
         readyAt[index] = Time.time + ability.cooldown * (PlayerUpgrades.Instance != null ? PlayerUpgrades.Instance.CooldownMultiplier : 1f);
 
         Vector3 from = aim.position;
+        castScale = Mathf.Clamp(damageScale, 0.1f, 1f);
         Vector3 to = Resolve(ability, from, aim.forward);
 
         // The effect grows with the radius item, as in Deadlock: what you see is the area that hurts.
@@ -167,11 +258,13 @@ public class AbilityCaster : MonoBehaviour
 
                     if (target != null && target.IsAlive && target.Faction != Faction.Neutral)
                     {
-                        if (FactionUtility.IsHostile(MatchNet.LocalFaction, target.Faction))
+                        // The shooter's own body and allies don't block the shot; the first enemy takes it.
+                        if (!FactionUtility.IsHostile(MatchNet.LocalFaction, target.Faction))
                         {
-                            Hit(target, ability, hit.point, direction);
+                            continue;
                         }
 
+                        Hit(target, ability, hit.point, direction);
                         end = hit.point;
                         break;
                     }
@@ -203,12 +296,147 @@ public class AbilityCaster : MonoBehaviour
                     centre = floor.point;
                 }
 
-                DamageArea(ability, centre);
+                DamageArea(ability, centre, ability.damage);
+                AbilityEffects.ApplyMovement(ability, MatchNet.LocalFaction, centre, ScaledRadius(ability));
                 return centre;
+            }
+
+            case AbilityShape.Projectile:
+            {
+                // Straight along the aim, as far as its lifetime carries it, or to the wall or floor it
+                // meets first: there it stops and keeps crackling until it fades.
+                Vector3 dir = direction.normalized;
+                float range = AbilityEffects.MaxTravel(ability);
+
+                if (Physics.SphereCast(from, 0.25f, dir, out RaycastHit wall, range, groundMask, QueryTriggerInteraction.Ignore))
+                {
+                    range = Mathf.Max(0.3f, wall.distance);
+                }
+
+                AbilityEffects.RunProjectile(ability, MatchNet.LocalFaction, from, dir, range, ScaledRadius(ability),
+                    (at, amount) => DamageArea(ability, at, amount));
+                return from + dir * range;
+            }
+
+            case AbilityShape.Channel:
+            {
+                StartCoroutine(Channel(ability, System.Array.IndexOf(abilities, ability)));
+                return from;
             }
 
             default:
                 return from;
+        }
+    }
+
+    // ---- Channelled abilities (Seven's storm cloud) ----
+
+    /// <summary>True while this machine's player is channelling (a storm): no shooting, no other ability.</summary>
+    public static bool LocalChanneling { get; private set; }
+
+    /// <summary>True while this caster is channelling.</summary>
+    public bool IsChanneling { get; private set; }
+
+    /// <summary>Index of the ability being channelled, or -1.</summary>
+    public int ChannelingIndex { get; private set; } = -1;
+
+    /// <summary>Seconds of channel left.</summary>
+    public float ChannelRemaining => IsChanneling ? Mathf.Max(0f, channelEnd - Time.time) : 0f;
+
+    private float channelEnd;
+
+    /// <summary>
+    /// The caster turns into a storm: floats up a few metres (gently: no sudden lifts in VR), can still
+    /// walk with the stick but not shoot or cast, and lightning hurts every enemy in sight inside the
+    /// growing radius. The look is <see cref="AbilityEffects.RunStorm"/>, following the head.
+    /// </summary>
+    private IEnumerator Channel(AbilitySO ability, int index)
+    {
+        IsChanneling = true;
+        LocalChanneling = true;
+        ChannelingIndex = index;
+        float seconds = ability.channelSeconds;
+        channelEnd = Time.time + seconds;
+
+        ComfortLocomotion locomotion = FindObjectOfType<ComfortLocomotion>();
+        Transform body = locomotion != null ? locomotion.Rig : transform;
+        float baseY = body.position.y;
+        float lifted = 0f;
+        Transform head = Camera.main != null ? Camera.main.transform : aim;
+        float radiusScale = ability.radius > 0f ? ScaledRadius(ability) / ability.radius : 1f;
+        AbilityEffects.RunStorm(ability, head, seconds, radiusScale);
+
+        float interval = Mathf.Max(0.1f, ability.tickInterval);
+        float nextTick = 0f;
+
+        for (float t = 0f; t < seconds; t += Time.deltaTime)
+        {
+            if (MatchManager.Instance != null && MatchManager.Instance.State != MatchState.Playing)
+            {
+                break;
+            }
+
+            // Up over the first second, down over the last one.
+            float k = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(t / 1f)) * Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((seconds - t) / 1f));
+            float lift = ability.riseHeight * k;
+            Vector3 p = body.position;
+            p.y += lift - lifted;
+            body.position = p;
+            lifted = lift;
+
+            if (t >= nextTick)
+            {
+                nextTick += interval;
+                float radius = AbilityEffects.StormRadius(ability, t, radiusScale);
+                StormTick(ability, head.position, radius, ability.damagePerSecond * interval);
+            }
+
+            yield return null;
+        }
+
+        // Back down exactly where the storm took off from (height only: the walk keeps its place).
+        Vector3 end = body.position;
+        end.y = baseY;
+        body.position = end;
+
+        IsChanneling = false;
+        LocalChanneling = false;
+        ChannelingIndex = -1;
+    }
+
+    /// <summary>One strike of the storm: every enemy inside the radius that the cloud can see takes the damage.</summary>
+    private void StormTick(AbilitySO ability, Vector3 cloud, float radius, float amount)
+    {
+        struck.Clear();
+        int count = Physics.OverlapSphereNonAlloc(cloud, radius, overlapBuffer, hitMask, QueryTriggerInteraction.Collide);
+
+        for (int i = 0; i < count; i++)
+        {
+            IDamageable target = overlapBuffer[i].GetComponentInParent<IDamageable>();
+
+            if (target == null || !target.IsAlive || target.Faction == Faction.Neutral || !struck.Add(target)
+                || !FactionUtility.IsHostile(MatchNet.LocalFaction, target.Faction))
+            {
+                continue;
+            }
+
+            // Out of the cloud's line of sight (behind a building or cover): spared, as in the original.
+            Vector3 point = overlapBuffer[i].bounds.center;
+
+            if (Physics.Linecast(cloud + Vector3.up * 0.8f, point, groundMask, QueryTriggerInteraction.Ignore))
+            {
+                continue;
+            }
+
+            Hit(target, amount, point, (point - cloud).normalized);
+        }
+    }
+
+    private void OnDestroy()
+    {
+        if (IsChanneling)
+        {
+            LocalChanneling = false;
         }
     }
 
@@ -244,14 +472,23 @@ public class AbilityCaster : MonoBehaviour
             yield return new WaitForSeconds(delay);
         }
 
-        DamageArea(ability, point);
+        DamageArea(ability, point, ability.damage);
+        AbilityEffects.ApplyMovement(ability, MatchNet.LocalFaction, point, ScaledRadius(ability));
     }
 
-    private void DamageArea(AbilitySO ability, Vector3 centre)
+    private static float ScaledRadius(AbilitySO ability) =>
+        PlayerUpgrades.Instance != null ? PlayerUpgrades.Instance.AbilityRadius(ability.radius) : ability.radius;
+
+    private void DamageArea(AbilitySO ability, Vector3 centre, float baseDamage)
     {
         struck.Clear();
 
-        float radius = PlayerUpgrades.Instance != null ? PlayerUpgrades.Instance.AbilityRadius(ability.radius) : ability.radius;
+        if (baseDamage <= 0f)
+        {
+            return;
+        }
+
+        float radius = ScaledRadius(ability);
         int count = Physics.OverlapSphereNonAlloc(centre, radius, overlapBuffer, hitMask, QueryTriggerInteraction.Collide);
 
         for (int i = 0; i < count; i++)
@@ -267,14 +504,19 @@ public class AbilityCaster : MonoBehaviour
             if (FactionUtility.IsHostile(MatchNet.LocalFaction, target.Faction))
             {
                 Vector3 point = overlapBuffer[i].bounds.center;
-                Hit(target, ability, point, (point - centre).normalized);
+                Hit(target, baseDamage, point, (point - centre).normalized);
             }
         }
     }
 
-    private void Hit(IDamageable target, AbilitySO ability, Vector3 point, Vector3 direction)
+    private float castScale = 1f;
+
+    private void Hit(IDamageable target, AbilitySO ability, Vector3 point, Vector3 direction) =>
+        Hit(target, ability.damage * castScale, point, direction);
+
+    private void Hit(IDamageable target, float baseDamage, Vector3 point, Vector3 direction)
     {
-        float amount = PlayerUpgrades.Instance != null ? PlayerUpgrades.Instance.AbilityDamage(ability.damage) : ability.damage;
+        float amount = PlayerUpgrades.Instance != null ? PlayerUpgrades.Instance.AbilityDamage(baseDamage) : baseDamage;
         DamageInfo info = new DamageInfo(amount, MatchNet.LocalFaction, gameObject, DamageType.Ability)
             .AtImpact(point, direction);
 

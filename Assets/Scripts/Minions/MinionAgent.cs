@@ -492,6 +492,33 @@ public class MinionAgent : MonoBehaviour
     /// <summary>Hit points the medic's orbs restore.</summary>
     public float HealAmount => definition != null ? definition.healAmount : 0f;
 
+    private float slowFraction;
+    private float slowUntil;
+    private Vector3 tetherAnchor;
+    private float tetherLength;
+    private float tetherUntil;
+
+    /// <summary>Slows this minion's walk by <paramref name="fraction"/> for a while (an ability). Host only: minions move there.</summary>
+    public void ApplySlow(float fraction, float seconds)
+    {
+        fraction = Mathf.Clamp(fraction, 0f, 0.9f);
+
+        if (Time.time >= slowUntil || fraction >= slowFraction)
+        {
+            slowFraction = fraction;
+        }
+
+        slowUntil = Mathf.Max(slowUntil, Time.time + seconds);
+    }
+
+    /// <summary>Keeps this minion within <paramref name="length"/> metres of <paramref name="anchor"/> for a while (a stake).</summary>
+    public void Tether(Vector3 anchor, float length, float seconds)
+    {
+        tetherAnchor = anchor;
+        tetherLength = Mathf.Max(0.5f, length);
+        tetherUntil = Time.time + seconds;
+    }
+
     /// <summary>Plays the death orb on the joining player's copy: the host decided who it flies to.</summary>
     public void ShowDeathOrb(Vector3 from, Transform target)
     {
@@ -786,7 +813,21 @@ public class MinionAgent : MonoBehaviour
 
         direction.Normalize();
 
-        Vector3 next = transform.position + direction * (definition.moveSpeed * Time.deltaTime);
+        float slow = Time.time < slowUntil ? 1f - slowFraction : 1f;
+        Vector3 next = transform.position + direction * (definition.moveSpeed * slow * Time.deltaTime);
+
+        // Held by a stake: no step that takes it further than the tether allows.
+        if (Time.time < tetherUntil)
+        {
+            Vector3 before = transform.position - tetherAnchor;
+            Vector3 after = next - tetherAnchor;
+            before.y = after.y = 0f;
+
+            if (after.magnitude > tetherLength && after.magnitude > before.magnitude)
+            {
+                return;
+            }
+        }
 
         // Snap to the ground so a sloped or stepped lane doesn't leave minions floating.
         if (Physics.Raycast(next + Vector3.up * 2f, Vector3.down, out RaycastHit hit, 6f, groundMask, QueryTriggerInteraction.Ignore))

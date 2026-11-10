@@ -13,7 +13,8 @@ MonoBehaviour:
   m_Name: Vindicta_Asesinar
   m_EditorClassIdentifier: 
   abilityName: Asesinar
-  description: Un disparo de francotiradora que atraviesa el carril.
+  description: "Mant\xE9n el bot\xF3n para cargar el disparo y su\xE9ltalo para disparar:
+    cargado del todo hace el doble."
   icon: {fileID: 0}
   castClip: {fileID: 8300000, guid: d8bf536ca267f454aa92d9edcca1d945, type: 3}
   impactClip: {fileID: 8300000, guid: 11a8f94743b5ddf40968920c7c9f38fe, type: 3}
@@ -26,6 +27,20 @@ MonoBehaviour:
   duration: 0
   travelTime: 0
   shape: 3
-  damage: 150
+  damage: 160
   radius: 0
   castRange: 70
+  travelSpeed: 6
+  damagePerSecond: 0
+  tickInterval: 0.5
+  slowedSpeed: 0.2
+  channelSeconds: 6
+  riseHeight: 2.5
+  radiusEnd: 12
+  growSpeed: 1
+  slow: 0
+  slowSeconds: 1.5
+  tetherSeconds: 0
+  tetherLength: 4
+  chargeSeconds: 1
+  unchargedDamage: 0.5

@@ -13,19 +13,35 @@ MonoBehaviour:
   m_Name: Seven_BolaRelampago
   m_EditorClassIdentifier: 
   abilityName: "Bola rel\xE1mpago"
-  description: "Lanza una bola el\xE9ctrica que estalla donde apuntas."
-  icon: {fileID: 0}
+  description: "Una bola el\xE9ctrica que avanza en l\xEDnea recta: electrocuta lo
+    que toca, se frena mientras da\xF1a enemigos y se queda donde choca con el piso
+    o una pared."
+  icon: {fileID: 21300000, guid: e770ab4e925a77346ad5e4671d09a6a4, type: 3}
   castClip: {fileID: 8300000, guid: d8bf536ca267f454aa92d9edcca1d945, type: 3}
   impactClip: {fileID: 8300000, guid: 11a8f94743b5ddf40968920c7c9f38fe, type: 3}
   loopClip: {fileID: 0}
   endClip: {fileID: 0}
   loopSeconds: 2.5
   effectPrefab: {fileID: 0}
-  tint: {r: 0.5, g: 0.85, b: 1, a: 1}
-  cooldown: 8
-  duration: 0
+  tint: {r: 1, g: 0.85, b: 0.2, a: 1}
+  cooldown: 10
+  duration: 4.5
   travelTime: 0.35
-  shape: 2
-  damage: 70
-  radius: 3.5
-  castRange: 30
+  shape: 4
+  damage: 0
+  radius: 3.2
+  castRange: 20
+  travelSpeed: 7
+  damagePerSecond: 28
+  tickInterval: 0.25
+  slowedSpeed: 0.2
+  channelSeconds: 6
+  riseHeight: 2.5
+  radiusEnd: 12
+  growSpeed: 1
+  slow: 0.25
+  slowSeconds: 0.6
+  tetherSeconds: 0
+  tetherLength: 4
+  chargeSeconds: 0
+  unchargedDamage: 0.5

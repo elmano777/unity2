@@ -79,6 +79,9 @@ public class NetworkPlayer : NetworkBehaviour
     /// <summary>Seconds a downed player waits before coming back at their end of the lane.</summary>
     public float RespawnSeconds => respawnSeconds;
 
+    /// <summary>This player's hit points (the host's numbers, mirrored on the other screen).</summary>
+    public Health Body => bodyHealth;
+
     /// <summary>This machine's own player while a duel is running; null offline.</summary>
     public static NetworkPlayer Local { get; private set; }
 
@@ -329,7 +332,58 @@ public class NetworkPlayer : NetworkBehaviour
         if (abilities != null && index >= 0 && index < abilities.Length)
         {
             AbilityFx.Play(abilities[index], from, to, radiusScale);
+            ReplayMovementEffects(abilities[index], from, to, radiusScale);
         }
+    }
+
+    /// <summary>
+    /// The rival's slows and tethers land on this screen's player (and, on the host, its minions):
+    /// movement is local, so the copy of the cast applies them here the way the caster's screen does.
+    /// </summary>
+    private void ReplayMovementEffects(AbilitySO ability, Vector3 from, Vector3 to, float radiusScale)
+    {
+        float radius = ability.radius * radiusScale;
+
+        // The ball and the storm are drawn by their simulation, so the copy always runs them
+        // (without damage: that only comes from the caster's screen).
+        switch (ability.shape)
+        {
+            case AbilityShape.Projectile:
+                Vector3 path = to - from;
+                AbilityEffects.RunProjectile(ability, Side, from, path.sqrMagnitude > 0.0001f ? path : Vector3.forward, path.magnitude, radius, null);
+                return;
+
+            case AbilityShape.Channel:
+                AbilityEffects.RunStorm(ability, head != null ? head : transform, ability.channelSeconds, radiusScale);
+                return;
+        }
+
+        if (!ability.HasMovementEffect)
+        {
+            return;
+        }
+
+        switch (ability.shape)
+        {
+
+            case AbilityShape.AreaAtAim:
+                StartCoroutine(MovementAfter(ability, to, radius, ability.travelTime));
+                break;
+
+            case AbilityShape.AreaAroundCaster:
+                AbilityEffects.ApplyMovement(ability, Side, to, radius);
+                break;
+        }
+    }
+
+    private System.Collections.IEnumerator MovementAfter(AbilitySO ability, Vector3 at, float radius, float delay)
+    {
+        if (delay > 0f)
+        {
+            yield return new WaitForSeconds(delay);
+        }
+
+        AbilityEffects.ApplyMovement(ability, Side, at, radius);
     }
 
     /// <summary>
@@ -576,6 +630,13 @@ public class NetworkPlayer : NetworkBehaviour
 
     private void OnHeroChanged(int previous, int current)
     {
+        // The host owns every body's hit points: once the hero is known, the body gets that hero's.
+        if (IsServer && bodyHealth != null && Hero != null && bodyHealth.IsAlive
+            && !Mathf.Approximately(bodyHealth.MaxHealth, Hero.maxHealth))
+        {
+            bodyHealth.AddMaxHealth(Hero.maxHealth - bodyHealth.MaxHealth);
+        }
+
         if (!IsOwner)
         {
             ShowHero(current);
