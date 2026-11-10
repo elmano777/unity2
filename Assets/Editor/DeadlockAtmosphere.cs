@@ -1014,9 +1014,11 @@ public static class DeadlockAtmosphere
     // =====================================================================================
 
     private const float RopeY = 9.5f;
-    private const float RouteHalf = 80f;
-    // Steel gantries that carry the rope across the avenue (Amber half; mirrored for Sapphire).
-    private static readonly float[] GantryZ = { -80f, -63f, -37f, -16f, 0f, 16f, 37f, 63f, 80f };
+    // The rope starts over the open-roofed spawn room at the back of each base (step 26).
+    private const float RouteHalf = 91.3f;
+    // Steel gantries that carry the rope (Amber half; mirrored for Sapphire): in the spawn room,
+    // behind the base gate, then along the avenue.
+    private static readonly float[] GantryZ = { -91.3f, -71.5f, -56f, -40f, -30f, -16f, 0f, 16f, 30f, 40f, 56f, 71.5f, 91.3f };
 
     [MenuItem("Deadlock/Setup/30 Lane Night + Zipline Route")]
     public static void BuildLaneFromMenu()
@@ -1037,15 +1039,23 @@ public static class DeadlockAtmosphere
         return log.ToString();
     }
 
+    // Step 26's template layout is stretched in the world; everything here is written in template
+    // coordinates (Amber's half) and goes through the same mapping.
+    private static float SX => DeadlockExpandedMap.ScaleX;
+    private static float SZ => DeadlockExpandedMap.ScaleZ;
+    private static Vector3 W(float x, float y, float z) => DeadlockExpandedMap.World(x, y, z);
+    private static float GantryPostX => 8f * DeadlockExpandedMap.ScaleX - 0.8f; // just inside the lane facades
+
     /// <summary>
-    /// Plan-view x of the rope at <paramref name="z"/>: straight out of Amber's base, a bend to the
-    /// tower side (x = -5), straight past the tower, an S through the plaza, and point-mirrored after.
+    /// Plan-view x of the rope at template <paramref name="z"/>: straight out of Amber's spawn room
+    /// along x = +5.8 (beside the patron and past the Walker in the middle of the lane), a bend across
+    /// to the tower side (x = -5), straight past the tower, an S through the plaza, point-mirrored after.
     /// </summary>
     private static float RouteX(float z)
     {
         float Smooth(float t) { t = Mathf.Clamp01(t); return t * t * (3f - 2f * t); }
-        if (z < -56f) return 0f;
-        if (z < -40f) return -5f * Smooth((z + 56f) / 16f);
+        if (z < -40f) return 5.8f;
+        if (z < -30f) return 5.8f - 10.8f * Smooth((z + 40f) / 10f);
         if (z < -16f) return -5f;
         if (z <= 16f) return -5f + 10f * Smooth((z + 16f) / 32f);
         return -RouteX(-z);
@@ -1069,9 +1079,9 @@ public static class DeadlockAtmosphere
     private static Vector3[] RoutePoints()
     {
         var pts = new List<Vector3>();
-        for (float z = -RouteHalf; z <= RouteHalf + 0.01f; z += 1f)
+        for (float z = -RouteHalf; z <= RouteHalf + 0.01f; z += 0.8f)
         {
-            pts.Add(new Vector3(RouteX(z), RouteY(z), z));
+            pts.Add(W(RouteX(z), RouteY(z), z));
         }
         return pts.ToArray();
     }
@@ -1174,7 +1184,7 @@ public static class DeadlockAtmosphere
         foreach (float gz in GantryZ)
         {
             Material team = gz < -1f ? amberLamp : gz > 1f ? sapphireLamp : neutralLamp;
-            Gantry(gantries, glow, steel, concrete, team, gz, RouteX(gz), RouteY(gz));
+            Gantry(gantries, glow, steel, concrete, team, gz * SZ, RouteX(gz) * SX, RouteY(gz));
         }
         Tube(gantries, cable, route, 0.03f);
 
@@ -1192,20 +1202,20 @@ public static class DeadlockAtmosphere
         {
             for (int i = 0; i < lampZ.Length; i++)
             {
-                float x = (i % 2 == 0 ? -7.35f : 7.35f) * half;
-                Vector3 p = FreeSpot(new Vector3(x, 0f, lampZ[i] * half));
+                float x = (i % 2 == 0 ? -1f : 1f) * half * (GantryPostX + 0.15f);
+                Vector3 p = FreeSpot(new Vector3(x, 0f, lampZ[i] * half * SZ));
                 if (StreetLamp(lamps, glow, iron, lampGlass, halo, pool, lights, p, true)) lampCount++;
             }
             foreach (Vector2 b in new[] { new Vector2(21f, -75f), new Vector2(-21f, -75f), new Vector2(21f, -88f), new Vector2(-21f, -88f) })
             {
-                Vector3 p = FreeSpot(new Vector3(b.x * half, 0f, b.y * half));
+                Vector3 p = FreeSpot(W(b.x * half, 0f, b.y * half));
                 StreetLamp(lamps, glow, iron, lampGlass, halo, pool, lights, p, b.y > -80f);
                 lampCount++;
             }
         }
         foreach (int s in new[] { -1, 1 })
         {
-            StreetLamp(lamps, glow, iron, lampGlass, halo, pool, lights, FreeSpot(new Vector3(s * 15.5f, 0f, -s * 1.5f)), true);
+            StreetLamp(lamps, glow, iron, lampGlass, halo, pool, lights, FreeSpot(W(s * 15.5f, 0f, -s * 1.5f)), true);
             lampCount++;
         }
 
@@ -1217,16 +1227,18 @@ public static class DeadlockAtmosphere
         Material[] winMats = { winWarm, winWarm, winWarm, winCool, winAmber };
         var windows = new Batch();
         int windowCount = 0;
-        for (float z = -68f; z <= 68f; z += 3.2f)
+        // From the lane centre to its facades, and from the middle of each district alley to both sides.
+        float laneFacade = 8f * SX, alleyMid = 24f * SX;
+        for (float z = -68f * SZ; z <= 68f * SZ; z += 3.2f)
         {
             foreach (float y in new[] { 3.4f, 6.2f, 9.0f, 11.8f })
             {
-                windowCount += TryWindow(windows, winMats, rng, new Vector3(0f, y, z), Vector3.right, 6.5f, 11f);
-                windowCount += TryWindow(windows, winMats, rng, new Vector3(0f, y, z), Vector3.left, 6.5f, 11f);
-                windowCount += TryWindow(windows, winMats, rng, new Vector3(24f, y, z), Vector3.right, 2.5f, 9f);
-                windowCount += TryWindow(windows, winMats, rng, new Vector3(24f, y, z), Vector3.left, 2.5f, 9f);
-                windowCount += TryWindow(windows, winMats, rng, new Vector3(-24f, y, z), Vector3.right, 2.5f, 9f);
-                windowCount += TryWindow(windows, winMats, rng, new Vector3(-24f, y, z), Vector3.left, 2.5f, 9f);
+                windowCount += TryWindow(windows, winMats, rng, new Vector3(0f, y, z), Vector3.right, laneFacade - 2.5f, laneFacade + 3f);
+                windowCount += TryWindow(windows, winMats, rng, new Vector3(0f, y, z), Vector3.left, laneFacade - 2.5f, laneFacade + 3f);
+                windowCount += TryWindow(windows, winMats, rng, new Vector3(alleyMid, y, z), Vector3.right, 4f, 12f);
+                windowCount += TryWindow(windows, winMats, rng, new Vector3(alleyMid, y, z), Vector3.left, 4f, 12f);
+                windowCount += TryWindow(windows, winMats, rng, new Vector3(-alleyMid, y, z), Vector3.right, 4f, 12f);
+                windowCount += TryWindow(windows, winMats, rng, new Vector3(-alleyMid, y, z), Vector3.left, 4f, 12f);
             }
         }
 
@@ -1243,14 +1255,14 @@ public static class DeadlockAtmosphere
         {
             for (int i = 0; i < 12; i++)
             {
-                float px = (float)(rng.NextDouble() * 13.0 - 6.5);
-                float pz = half * (float)(14.0 + rng.NextDouble() * 54.0);
+                float px = (float)(rng.NextDouble() * 13.0 - 6.5) * SX;
+                float pz = half * (float)(14.0 + rng.NextDouble() * 54.0) * SZ;
                 street.Mesh(puddle, BuiltinMesh("Cylinder"), Matrix4x4.TRS(new Vector3(px, 0.018f, pz),
                     Quaternion.Euler(0f, (float)rng.NextDouble() * 180f, 0f), new Vector3(1.2f + (float)rng.NextDouble() * 2.2f, 0.001f, 0.6f + (float)rng.NextDouble() * 1.1f)));
             }
             foreach (Vector2 m in new[] { new Vector2(2.2f, -60f), new Vector2(-2.8f, -33f), new Vector2(1.6f, -8f) })
             {
-                Vector3 p = new Vector3(m.x * half, 0f, m.y * half);
+                Vector3 p = W(m.x * half, 0f, m.y * half);
                 street.Cylinder(manhole, p + Vector3.up * 0.02f, 0.45f, 0.02f);
                 ParticleSystem ps = DeadlockSceneKit.Particles("ManholeSteam", fx, p + Vector3.up * 0.15f, steam, new Color(1f, 1f, 1f, 0.55f),
                     true, 4f, 0, 5f, 0.5f, 1.6f, new Vector3(0.5f, 0.05f, 0.5f), false, -0.03f);
@@ -1278,7 +1290,7 @@ public static class DeadlockAtmosphere
         {
             for (int i = 0; i < carSpots.GetLength(0); i++)
             {
-                Vector3 p = new Vector3(carSpots[i, 0] * half, 0f, carSpots[i, 1] * half);
+                Vector3 p = W(carSpots[i, 0] * half, 0f, carSpots[i, 1] * half);
                 if (Physics.CheckBox(p + Vector3.up * 0.8f, new Vector3(2.3f, 0.6f, 2.3f))) continue;
                 Car(cars, carPaint[rng.Next(carPaint.Length)], chrome, tyre, carGlass, tail, p, Quaternion.Euler(0f, carSpots[i, 2] + (half < 0 ? 180f : 0f), 0f));
                 carCount++;
@@ -1296,9 +1308,9 @@ public static class DeadlockAtmosphere
         glow.Flush(statics, "Lane_Glow", false);
         foreach (Transform t in statics) GameObjectUtility.SetStaticEditorFlags(t.gameObject, StaticEditorFlags.BatchingStatic | StaticEditorFlags.ReflectionProbeStatic);
 
-        BakeProbe(root, "Lane_Probe_Amber", new Vector3(0f, 5f, -41f), new Vector3(16f, 12f, 60f));
-        BakeProbe(root, "Lane_Probe_Sapphire", new Vector3(0f, 5f, 41f), new Vector3(16f, 12f, 60f));
-        BakeProbe(root, "Lane_Probe_Plaza", new Vector3(0f, 6f, 0f), new Vector3(38f, 14f, 24f));
+        BakeProbe(root, "Lane_Probe_Amber", W(0f, 5f, -41f), new Vector3(16f * SX, 12f, 60f * SZ));
+        BakeProbe(root, "Lane_Probe_Sapphire", W(0f, 5f, 41f), new Vector3(16f * SX, 12f, 60f * SZ));
+        BakeProbe(root, "Lane_Probe_Plaza", W(0f, 6f, 0f), new Vector3(38f * SX, 14f, 24f * SZ));
 
         // Report anything the rope passes through (signs, the plaza, placeholder objectives).
         var clashes = new List<string>();
@@ -1383,7 +1395,7 @@ public static class DeadlockAtmosphere
     /// <summary>A lattice steel gantry across the avenue with a pulley hanger where the rope passes.</summary>
     private static void Gantry(Batch b, Batch glow, Material steel, Material concrete, Material team, float z, float ropeX, float ropeY)
     {
-        const float postX = 7.55f;
+        float postX = GantryPostX;
         float top = ropeY + 1.0f;
         foreach (int s in new[] { -1, 1 })
         {

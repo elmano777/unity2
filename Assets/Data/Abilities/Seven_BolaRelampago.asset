@@ -15,8 +15,11 @@ MonoBehaviour:
   abilityName: "Bola rel\xE1mpago"
   description: "Lanza una bola el\xE9ctrica que estalla donde apuntas."
   icon: {fileID: 0}
-  castClip: {fileID: 8300000, guid: e81a996b87fb416f8b7dbc868f34de27, type: 3}
-  impactClip: {fileID: 8300000, guid: cd307de6291a428d80381098dedace4d, type: 3}
+  castClip: {fileID: 8300000, guid: d8bf536ca267f454aa92d9edcca1d945, type: 3}
+  impactClip: {fileID: 8300000, guid: 11a8f94743b5ddf40968920c7c9f38fe, type: 3}
+  loopClip: {fileID: 0}
+  endClip: {fileID: 0}
+  loopSeconds: 2.5
   effectPrefab: {fileID: 0}
   tint: {r: 0.5, g: 0.85, b: 1, a: 1}
   cooldown: 8

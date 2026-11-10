@@ -162,9 +162,11 @@ public static class DeadlockShop
             }
         }
 
-        // Same spots as the step 27 stands: beside the spawn, turned towards it.
-        BuildBoard("Shop_Amber", Faction.Player, new Vector3(5f, 0f, -73.5f), new Vector3(0f, 0f, -76f), items);
-        BuildBoard("Shop_Sapphire", Faction.Enemy, new Vector3(-5f, 0f, 73.5f), new Vector3(0f, 0f, 76f), items);
+        // Inside the spawn room (step 26), against its back wall and turned towards the respawn pad.
+        // Template spots on step 26's layout, stretched like the map (DeadlockExpandedMap.World).
+        Vector3 amberShop = DeadlockExpandedMap.World(4.2f, 0f, -91.2f), amberLook = DeadlockExpandedMap.World(4.2f, 0f, -86f);
+        BuildBoard("Shop_Amber", Faction.Player, amberShop, amberLook, items);
+        BuildBoard("Shop_Sapphire", Faction.Enemy, -amberShop, -amberLook, items);
         return true;
     }
 

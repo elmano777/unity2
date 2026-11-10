@@ -81,6 +81,13 @@ public class MissionGuide : MonoBehaviour
                     Destroy(spawner.Spawned.gameObject);
                 }
 
+                // Out of play, but still in sight: the player's own tower and base guardians stay
+                // as scenery (the Walker, effigies and patron already are, as part of the map).
+                if (spawner.PrefabHasLooks)
+                {
+                    spawner.SpawnScenery();
+                }
+
                 spawner.gameObject.SetActive(false);
             }
         }

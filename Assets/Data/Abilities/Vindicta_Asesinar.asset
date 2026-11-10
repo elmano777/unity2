@@ -15,8 +15,11 @@ MonoBehaviour:
   abilityName: Asesinar
   description: Un disparo de francotiradora que atraviesa el carril.
   icon: {fileID: 0}
-  castClip: {fileID: 8300000, guid: caca5b233f5142ecb7989c854274e7c3, type: 3}
-  impactClip: {fileID: 8300000, guid: 9fb5e146cb1943218f1a0555ff4722d2, type: 3}
+  castClip: {fileID: 8300000, guid: d8bf536ca267f454aa92d9edcca1d945, type: 3}
+  impactClip: {fileID: 8300000, guid: 11a8f94743b5ddf40968920c7c9f38fe, type: 3}
+  loopClip: {fileID: 0}
+  endClip: {fileID: 0}
+  loopSeconds: 2.5
   effectPrefab: {fileID: 0}
   tint: {r: 1, g: 0.25, b: 0.3, a: 1}
   cooldown: 16

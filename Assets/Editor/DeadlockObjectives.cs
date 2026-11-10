@@ -50,19 +50,26 @@ public static class DeadlockObjectives
 
         EditGuardian();
         GameObject walker = BuildObjective("Walker_Objective", "Walker", tier: 2, isPatron: false, attacks: true,
-            colliderCenter: new Vector3(0f, 7f, 0f), colliderSize: new Vector3(5.2f, 3f, 4.2f),
-            muzzle: new Vector3(0f, 7f, 0f), beamOrigin: new Vector3(0f, 8.8f, 1.95f), barHeight: 10.2f,
-            range: 16f, interval: 1.4f, shieldRadius: 4.2f);
+            // Sized for the Walker model (~14 x 9 x 11 m), standing in the middle of the lane.
+            colliderCenter: new Vector3(0f, 5f, 0f), colliderSize: new Vector3(8f, 6f, 8f),
+            muzzle: new Vector3(0f, 6f, 0f), beamOrigin: new Vector3(0f, 7.5f, 3f), barHeight: 10.6f,
+            range: 18f, interval: 1.4f, shieldRadius: 7.5f);
+        // The shrines beside the patron (speaker towers / book stands, ~8-9 m): both must fall
+        // before the patron can be hurt.
         GameObject shrine = BuildObjective("Shrine_Objective", "Santuario", tier: 4, isPatron: false, attacks: false,
-            colliderCenter: new Vector3(0f, 2.5f, 0f), colliderSize: new Vector3(1.6f, 5f, 1.6f),
-            muzzle: Vector3.zero, beamOrigin: Vector3.zero, barHeight: 5.6f, range: 0f, interval: 0f, shieldRadius: 3.2f);
+            colliderCenter: new Vector3(0f, 4.4f, 0f), colliderSize: new Vector3(3.4f, 8.8f, 3.4f),
+            muzzle: Vector3.zero, beamOrigin: Vector3.zero, barHeight: 9.8f, range: 0f, interval: 0f, shieldRadius: 3.8f);
+        // The patron model is ~18 m tall; its health is two bars (see PatronPhaseVisual).
         GameObject patron = BuildObjective("Patron_Objective", "Patrón", tier: 5, isPatron: true, attacks: true,
-            colliderCenter: new Vector3(0f, 5.5f, 0f), colliderSize: new Vector3(3.2f, 9f, 3.2f),
-            muzzle: new Vector3(0f, 4f, 0f), beamOrigin: new Vector3(0f, 13f, 0f), barHeight: 15f,
-            range: 16f, interval: 1f, shieldRadius: 6f);
+            colliderCenter: new Vector3(0f, 7.5f, 0f), colliderSize: new Vector3(5f, 15f, 5f),
+            muzzle: new Vector3(0f, 9f, 0f), beamOrigin: new Vector3(0f, 15f, 0f), barHeight: 19.5f,
+            range: 16f, interval: 1f, shieldRadius: 7f);
+        // Each side's base guardians have their own model.
+        GameObject baseGuardian = BuildBaseGuardian("Amber_Base_Guardian", "BaseGuardian_Objective");
+        GameObject baseGuardianSapphire = BuildBaseGuardian("Sapphire_Base_Guardian", "BaseGuardian_Sapphire_Objective");
 
-        AppendToPrefabList(walker, shrine, patron);
-        BuildScene(walker, shrine, patron, seven, items);
+        AppendToPrefabList(walker, shrine, patron, baseGuardian, baseGuardianSapphire);
+        BuildScene(walker, shrine, patron, baseGuardian, baseGuardianSapphire, seven, items);
 
         AssetDatabase.SaveAssets();
         Debug.Log("[Deadlock Objectives] Objective sequence, abilities, shop and wrist HUD set up in the Lane.");
@@ -293,6 +300,12 @@ public static class DeadlockObjectives
             so.FindProperty("shield").objectReferenceValue = Shield(root.transform, colliderCenter,
                 new Vector3(shieldRadius * 2f, colliderSize.y + 1.5f, shieldRadius * 2f));
 
+            if (isPatron)
+            {
+                // Two health bars, each as long as the patron's single bar used to be.
+                so.FindProperty("baseHealth").floatValue = 1600f;
+            }
+
             if (guardian != null)
             {
                 // Same crash of the Guardian when it falls.
@@ -303,7 +316,7 @@ public static class DeadlockObjectives
 
             so.ApplyModifiedPropertiesWithoutUndo();
 
-            HealthBarOn(root, barHeight, isPatron ? 4f : 3f);
+            HealthBarOn(root, barHeight, isPatron ? 4f : 3f, twoBars: isPatron);
 
             return PrefabUtility.SaveAsPrefabAsset(root, path);
         }
@@ -381,8 +394,74 @@ public static class DeadlockObjectives
         return shield;
     }
 
+    /// <summary>
+    /// The base guardians: the Guardian's tower logic (beam, targeting, network) with the Base
+    /// Guardian model in place of the Guardian's body, which stays hidden only to drive the beam.
+    /// </summary>
+    private static GameObject BuildBaseGuardian(string modelName, string prefabName)
+    {
+        string modelPath = $"Assets/Models/Structures/{modelName}.glb";
+        const float scale = 0.62f; // the extracted models are ~12.3 m: ~7.6 m here, taller than the 6.5 m Guardian
+        GameObject model = AssetDatabase.LoadAssetAtPath<GameObject>(modelPath);
+
+        if (model == null)
+        {
+            Debug.LogWarning($"[Deadlock Objectives] {modelPath} missing: those base guardians keep the Guardian model.");
+            return null;
+        }
+
+        string path = $"{PrefabFolder}/{prefabName}.prefab";
+        GameObject root = PrefabUtility.LoadPrefabContents(GuardianPath);
+
+        try
+        {
+            foreach (Renderer r in root.GetComponentsInChildren<Renderer>(true))
+            {
+                if (r is SkinnedMeshRenderer) r.enabled = false;
+            }
+
+            Transform visual = root.transform.Find("Visual");
+            var instance = (GameObject)PrefabUtility.InstantiatePrefab(model, visual != null ? visual : root.transform);
+            instance.name = "BaseGuardianModel";
+            instance.transform.localPosition = Vector3.zero;
+            instance.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
+            instance.transform.localScale = Vector3.one * scale;
+            DeadlockExpandedMap.StaticizeSkins(instance);
+            DeadlockExpandedMap.OpaqueMaterials(instance);
+            float height = 12.2f * scale;
+
+            BoxCollider box = root.GetComponent<BoxCollider>();
+            box.center = new Vector3(0f, height * 0.5f, 0f);
+            box.size = new Vector3(3.2f, height, 3.2f);
+
+            Transform muzzle = root.transform.Find("Muzzle");
+            if (muzzle != null) muzzle.localPosition = new Vector3(0f, height * 0.75f, 0f);
+
+            Structure structure = root.GetComponent<Structure>();
+            var so = new SerializedObject(structure);
+            so.FindProperty("displayName").stringValue = "Guardián de base";
+            so.FindProperty("shield").objectReferenceValue = Shield(root.transform, new Vector3(0f, height * 0.5f, 0f), new Vector3(5.6f, height + 1f, 5.6f));
+            SetArray(so.FindProperty("renderersToDarken"), instance.GetComponentsInChildren<Renderer>());
+            so.ApplyModifiedPropertiesWithoutUndo();
+
+            HealthBarOn(root, height + 0.9f, 3f);
+            GameObject saved = PrefabUtility.SaveAsPrefabAsset(root, path);
+
+            // A copy of the Guardian carries its network id: give this prefab its own.
+            NetworkObject net = saved.GetComponent<NetworkObject>();
+            typeof(NetworkObject).GetMethod("OnValidate", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)?.Invoke(net, null);
+            EditorUtility.SetDirty(saved);
+            AssetDatabase.SaveAssets();
+            return saved;
+        }
+        finally
+        {
+            PrefabUtility.UnloadPrefabContents(root);
+        }
+    }
+
     /// <summary>The minions' two-quad bar, scaled up and hung over the objective.</summary>
-    private static void HealthBarOn(GameObject root, float height, float width)
+    private static void HealthBarOn(GameObject root, float height, float width, bool twoBars = false)
     {
         Transform old = root.transform.Find("HealthBar");
         if (old != null)
@@ -403,12 +482,26 @@ public static class DeadlockObjectives
         pivot.transform.SetParent(visual.transform, false);
         pivot.transform.localPosition = new Vector3(-0.5f, 0f, 0f);
         Quad("Fill", pivot.transform, new Vector3(0.5f, 0f, 0f), new Vector3(1f, 0.08f, 1f), barFill);
+
+        // The patron's second bar, under the first: it only starts to empty once the first is gone.
+        Transform secondPivot = null;
+
+        if (twoBars)
+        {
+            Quad("Back2", visual.transform, new Vector3(0f, -0.15f, 0.01f), new Vector3(1.04f, 0.12f, 1f), barBack);
+            secondPivot = new GameObject("FillPivot2").transform;
+            secondPivot.SetParent(visual.transform, false);
+            secondPivot.localPosition = new Vector3(-0.5f, -0.15f, 0f);
+            Quad("Fill2", secondPivot, new Vector3(0.5f, 0f, 0f), new Vector3(1f, 0.08f, 1f), barFill);
+        }
+
         visual.SetActive(false);
 
         HealthBar healthBar = bar.AddComponent<HealthBar>();
         var so = new SerializedObject(healthBar);
         so.FindProperty("health").objectReferenceValue = root.GetComponent<Health>();
         so.FindProperty("fillPivot").objectReferenceValue = pivot.transform;
+        so.FindProperty("secondFillPivot").objectReferenceValue = secondPivot;
         so.FindProperty("visual").objectReferenceValue = visual;
         so.ApplyModifiedPropertiesWithoutUndo();
     }
@@ -470,7 +563,8 @@ public static class DeadlockObjectives
 
     // ------------------------------------------------------------------ scene
 
-    private static void BuildScene(GameObject walker, GameObject shrine, GameObject patron, HeroDefinitionSO seven, ShopItemSO[] items)
+    private static void BuildScene(GameObject walker, GameObject shrine, GameObject patron, GameObject baseGuardian, GameObject baseGuardianSapphire,
+        HeroDefinitionSO seven, ShopItemSO[] items)
     {
         var scene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
 
@@ -507,7 +601,8 @@ public static class DeadlockObjectives
             {
                 // The map's stripped copies stand in until now; the real tower is spawned on the spot.
                 string slot = n.Contains("_L") ? "L" : "R";
-                Spawner(spawners, $"{sideName}_BaseGuardian_{slot}", marker, guardian, side, 3, "Guardián de base");
+                GameObject sideGuardian = side == Faction.Player ? baseGuardian : (baseGuardianSapphire != null ? baseGuardianSapphire : baseGuardian);
+                Spawner(spawners, $"{sideName}_BaseGuardian_{slot}", marker, sideGuardian != null ? sideGuardian : guardian, side, 3, "Guardián de base");
                 marker.gameObject.SetActive(false);
             }
         }

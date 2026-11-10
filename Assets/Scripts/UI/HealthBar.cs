@@ -24,6 +24,9 @@ public class HealthBar : MonoBehaviour
     [Tooltip("Keep the bar visible even at full health.")]
     [SerializeField] private bool alwaysVisible;
 
+    [Tooltip("Optional second row (the patron's two bars): with it, the top row is the first half of the health and empties first, this one the second half.")]
+    [SerializeField] private Transform secondFillPivot;
+
     private void Awake()
     {
         if (health == null)
@@ -77,17 +80,32 @@ public class HealthBar : MonoBehaviour
     {
         float fraction = max > 0f ? Mathf.Clamp01(current / max) : 0f;
 
-        if (fillPivot != null)
+        if (secondFillPivot != null)
         {
-            Vector3 scale = fillPivot.localScale;
-            scale.x = Mathf.Max(0.0001f, fraction);
-            fillPivot.localScale = scale;
+            SetFill(fillPivot, Mathf.Clamp01(fraction * 2f - 1f));
+            SetFill(secondFillPivot, Mathf.Clamp01(fraction * 2f));
+        }
+        else
+        {
+            SetFill(fillPivot, fraction);
         }
 
         if (visual != null)
         {
             visual.SetActive(alwaysVisible || (fraction < 0.999f && health.IsAlive));
         }
+    }
+
+    private static void SetFill(Transform pivot, float fraction)
+    {
+        if (pivot == null)
+        {
+            return;
+        }
+
+        Vector3 scale = pivot.localScale;
+        scale.x = Mathf.Max(0.0001f, fraction);
+        pivot.localScale = scale;
     }
 
     private void OnKilled(DamageInfo info)

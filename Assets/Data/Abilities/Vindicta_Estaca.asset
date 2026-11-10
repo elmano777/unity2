@@ -15,8 +15,11 @@ MonoBehaviour:
   abilityName: Estaca
   description: Clava una estaca que hiere a los enemigos cercanos.
   icon: {fileID: 0}
-  castClip: {fileID: 8300000, guid: 4af293ac9d674b4c87df92c03bbdecb2, type: 3}
-  impactClip: {fileID: 8300000, guid: f0e7de0565de4f32b5ecbc9285809d39, type: 3}
+  castClip: {fileID: 8300000, guid: d8bf536ca267f454aa92d9edcca1d945, type: 3}
+  impactClip: {fileID: 8300000, guid: 11a8f94743b5ddf40968920c7c9f38fe, type: 3}
+  loopClip: {fileID: 8300000, guid: cbebbe4cb31a49dca12c8bb1af833799, type: 3}
+  endClip: {fileID: 0}
+  loopSeconds: 2.5
   effectPrefab: {fileID: 0}
   tint: {r: 0.85, g: 0.4, b: 1, a: 1}
   cooldown: 10
@@ -26,6 +29,3 @@ MonoBehaviour:
   damage: 55
   radius: 3
   castRange: 25
-  loopClip: {fileID: 8300000, guid: cbebbe4cb31a49dca12c8bb1af833799, type: 3}
-  endClip: {fileID: 0}
-  loopSeconds: 2.5

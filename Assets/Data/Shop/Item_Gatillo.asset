@@ -17,7 +17,7 @@ MonoBehaviour:
   icon: {fileID: 21300000, guid: 7ce1c3c3edc8fa34b92fa088aa500b72, type: 3}
   category: 0
   tier: 2
-  cost: 450
+  cost: 300
   maxStacks: 2
   stat: 2
   delta: 0.85

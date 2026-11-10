@@ -285,9 +285,15 @@ public class LaneZipline : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Where the usable rope begins. A route starts over the spawn room, so it can be grabbed from
+    /// its very start; the straight fallback keeps clear of the patron it starts at.
+    /// </summary>
+    private float StartDistance() => route != null ? 0.5f : startFraction * laneLength;
+
     private void DrawRope()
     {
-        float start = startFraction * laneLength;
+        float start = StartDistance();
         rope.enabled = reach > start + 1f;
 
         if (!rope.enabled)
@@ -312,7 +318,7 @@ public class LaneZipline : MonoBehaviour
 
     private void Ride()
     {
-        float start = startFraction * laneLength;
+        float start = StartDistance();
         Transform hand = rig.leftControllerAnchor != null ? rig.leftControllerAnchor : rig.centerEyeAnchor;
         Transform head = rig.centerEyeAnchor;
 

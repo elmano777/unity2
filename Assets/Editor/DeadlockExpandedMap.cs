@@ -44,6 +44,18 @@ public static class DeadlockExpandedMap
 
     // Layout, in metres. Broadway runs along Z and Amber (the host) owns negative Z. Everything is
     // written once for Amber's half and point-reflected, (x, z) → (-x, -z), for Sapphire's.
+    /// <summary>
+    /// How much the template layout below is stretched in the world: the lane goes from 16 to 24 m
+    /// wide so the Walker fits, and the map from 192 to 250 m long. Other steps that place things on
+    /// the map (30, the shop) use these too.
+    /// </summary>
+    public const float ScaleX = 1.5f, ScaleZ = 1.3f;
+
+    /// <summary>A template point (x, z on Amber's half) in world space, without the side mirroring.</summary>
+    public static Vector3 World(float x, float y, float z) => new Vector3(x * ScaleX, y, z * ScaleZ);
+
+    private static Vector3 ScaleSize(Vector3 size) => new Vector3(size.x * ScaleX, size.y, size.z * ScaleZ);
+
     private const float MapHalfLength = 96f;
     private const float MapHalfWidth = 40f;
     private const float LaneHalfWidth = 8f;
@@ -59,14 +71,31 @@ public static class DeadlockExpandedMap
     private const float BaseHeight = 4.5f;
 
     private static readonly Vector3 GuardianPos = new Vector3(-5f, 0f, -24f);
-    private static readonly Vector3 WalkerPos = new Vector3(4.5f, 0f, -46f);
+    // The Walker model is ~14 m wide: it stands in the middle of the (now 24 m) lane.
+    // z -44 keeps its back clear of the bridge over the lane (template z -52, deck 6 m deep).
+    private static readonly Vector3 WalkerPos = new Vector3(0f, 0f, -44f);
+    private const float WalkerScale = 1f;
     private static readonly Vector3 BaseGuardianPos = new Vector3(6f, 0f, -66f);
-    private static readonly Vector3 ShrinePos = new Vector3(13f, 0f, -80f);
-    private static readonly Vector3 PatronPos = new Vector3(0f, 0f, -86f);
+    // The patron stands in front of the spawn room with an effigy (shrine) on each side.
+    private static readonly Vector3 ShrinePos = new Vector3(11.5f, 0f, -77f);
+    private static readonly Vector3 PatronPos = new Vector3(0f, 0f, -77f);
+
+    // Spawn room at the back of each base: glass front, an open doorway in each side wall, no roof
+    // (the zipline starts overhead).
+    private const float SpawnRoomFrontZ = -84f;
+    private const float SpawnRoomHalfWidth = 8f;
+    private const float SpawnRoomWallHeight = 5f;
+    private const float SpawnDoorStart = -88.5f, SpawnDoorEnd = -85.5f;
+
+    // Patron models (extracted, converted with gltf-transform) and their scale on this map (~18 m tall).
+    private const string ModelDir = "Assets/Models/Structures";
+    private const float HiddenKingScale = 0.36f, ArchmotherScale = 0.32f;
+    // Shrines (the destructible pair beside each patron), same scale as the base guardians: ~8-9 m.
+    private const float ShrineScale = 0.62f;
 
     // Heights of the flat markings over the ground: far enough apart not to flicker on the Quest's depth buffer.
     private const float FloorY = 0.015f, MarkingY = 0.03f;
-    private static readonly Vector3 PlayerSpawnPos = new Vector3(0f, 0f, -76f);
+    private static readonly Vector3 PlayerSpawnPos = new Vector3(0f, 0f, -88f);
     private static readonly Vector3 TeleportBasePos = new Vector3(-17f, 0f, -75f);
     private static readonly Vector3 TeleportFrontPos = new Vector3(-13f, 0f, -37f);
     private static readonly float[] WaypointZ = { -71f, -58f, -44f, -30f, -16f, 0f, 16f, 30f, 44f, 58f, 71f };
@@ -96,7 +125,10 @@ public static class DeadlockExpandedMap
             Side = side;
         }
 
-        public Vector3 P(float x, float y, float z) => new Vector3(Half * Side * x, y, Half * z);
+        // Template coordinates are stretched by ScaleX / ScaleZ on the way out, so the whole layout
+        // (lane, blocks, districts, bases, objectives) grows together; sizes of signs, windows and
+        // models are not stretched, only spaced out.
+        public Vector3 P(float x, float y, float z) => new Vector3(Half * Side * x * ScaleX, y, Half * z * ScaleZ);
         public Vector3 P(Vector3 p) => P(p.x, p.y, p.z);
         public Vector3 N(Vector3 n) => new Vector3(Half * Side * n.x, n.y, Half * n.z);
         public string HalfName => Half > 0 ? "Amber" : "Sapphire";
@@ -144,7 +176,7 @@ public static class DeadlockExpandedMap
     private static Material paving, sandstone, sandstoneDark, brick, brickDark, window, windowLit, lamp;
     private static Material asphalt, concrete, wood, metal, lacquer, jade, bronze, fence;
     private static Material neonBlue, neonPink, neonCyan, neonYellow, neonGreen, neonRed, neonPurple, white;
-    private static Material teleportRing, signBoard;
+    private static Material teleportRing, signBoard, glass;
     private static readonly Dictionary<Faction, Material> teamStone = new Dictionary<Faction, Material>();
     private static readonly Dictionary<Faction, Material> teamGlow = new Dictionary<Faction, Material>();
     private static readonly Dictionary<Faction, Material> teamFloor = new Dictionary<Faction, Material>();
@@ -286,6 +318,13 @@ public static class DeadlockExpandedMap
         }
 
         signBoard = Plain("Map_SignBoard", new Color(0.04f, 0.04f, 0.05f), 0.5f, Color.black);
+
+        // Spawn room glass: a faint additive pane (cheap on the Quest), the collider does the blocking.
+        glass = LoadOrCreate("Map_Glass", "Deadlock/Glow");
+        glass.SetColor("_Color", new Color(0.55f, 0.85f, 0.95f, 0.035f));
+        glass.SetFloat("_Radial", 0f);
+        EditorUtility.SetDirty(glass);
+        unshadowed.Add(glass);
         blue = NeonSet("Blue", neonBlue);
         pink = NeonSet("Pink", neonPink);
         cyan = NeonSet("Cyan", neonCyan);
@@ -439,7 +478,7 @@ public static class DeadlockExpandedMap
 
     /// <summary>A box given in template coordinates; the frame's reflection keeps it axis-aligned.</summary>
     private static void Box(string chunk, Frame f, Material material, Vector3 center, Vector3 size, float tile, bool collider) =>
-        Box(chunk, material, f.P(center), size, tile, collider);
+        Box(chunk, material, f.P(center), ScaleSize(size), tile, collider);
 
     /// <summary>A single flat rectangle (window, sign, floor marking).</summary>
     private static void Quad(string chunk, Material material, Vector3 center, Vector3 normal, float width, float height, float tile = 0f)
@@ -550,7 +589,7 @@ public static class DeadlockExpandedMap
         Box(chunk, f, sandstone, new Vector3(mx, BaseHeight / 2f, mz), new Vector3(dx, BaseHeight, dz), SandstoneTile, false);
         Box(chunk, f, upper, new Vector3(mx, BaseHeight + (height - BaseHeight) / 2f, mz), new Vector3(dx - 0.2f, height - BaseHeight, dz - 0.2f), BrickTile, false);
         Box(chunk, f, sandstone, new Vector3(mx, BaseHeight + 0.15f, mz), new Vector3(dx + 0.3f, 0.3f, dz + 0.3f), SandstoneTile, false);
-        Collider(chunk, f.P(mx, height / 2f, mz), new Vector3(dx, height, dz));
+        Collider(chunk, f.P(mx, height / 2f, mz), ScaleSize(new Vector3(dx, height, dz)));
 
         if ((faces & Faces.MinusX) != 0) Facade(chunk, f, new Vector3(x0, 0f, mz), Vector3.left, Vector3.forward, dz, height, random);
         if ((faces & Faces.PlusX) != 0) Facade(chunk, f, new Vector3(x1, 0f, mz), Vector3.right, Vector3.forward, dz, height, random);
@@ -625,7 +664,7 @@ public static class DeadlockExpandedMap
         string chunk = $"{f.HalfName}_Lane";
 
         float length = PlazaEdgeZ - BaseFrontZ;
-        Quad(chunk, asphalt, f.P(0f, FloorY, (BaseFrontZ + PlazaEdgeZ) / 2f), Vector3.up, LaneHalfWidth * 2f, length, PavingTile);
+        Quad(chunk, asphalt, f.P(0f, FloorY, (BaseFrontZ + PlazaEdgeZ) / 2f), Vector3.up, LaneHalfWidth * 2f * ScaleX, length * ScaleZ, PavingTile);
 
         for (float z = BaseFrontZ + 2f; z < PlazaEdgeZ - 2f; z += 6f)
         {
@@ -641,15 +680,7 @@ public static class DeadlockExpandedMap
             Box(chunk, f, sandstoneDark, c + Vector3.up * 0.9f, new Vector3(2.2f, 1.8f, 1.2f), SandstoneTile, true);
         }
 
-        // This side's zipline, run overhead from its own gate to the enemy's, in the lane's blue.
-        const float cableX = -7f, cableY = 9.6f;
-        Box(chunk, f, neonBlue, new Vector3(cableX, cableY, 0f), new Vector3(0.08f, 0.08f, -2f * BaseFrontZ), 0f, false);
-
-        foreach (float z in new[] { -68f, -40f, -12f, 16f, 44f })
-        {
-            Box(chunk, f, metal, new Vector3(-7.6f, cableY / 2f, z), new Vector3(0.3f, cableY, 0.3f), 0f, true);
-            Box(chunk, f, metal, new Vector3(-7.3f, cableY, z), new Vector3(0.9f, 0.2f, 0.2f), 0f, false);
-        }
+        // The zipline and its gantries are step 30's (ZiplineRoute), not built here any more.
 
         // A bridge resting on the lane buildings, as in the reference street.
         const float bridgeZ = -52f, underside = 5.6f, span = LaneHalfWidth * 2f + 1f, deckDepth = 6f;
@@ -712,7 +743,8 @@ public static class DeadlockExpandedMap
         Material stone = teamStone[f.Faction];
 
         Building(chunk, f, -BaseHalfWidth, BaseHalfWidth, -MapHalfLength, BaseBackZ, 16f, brickDark, Faces.PlusZ, random);
-        Quad(chunk, teamFloor[f.Faction], f.P(0f, FloorY, (BaseBackZ + BaseFrontZ) / 2f), Vector3.up, 44f, BaseFrontZ - BaseBackZ, PavingTile);
+        Quad(chunk, teamFloor[f.Faction], f.P(0f, FloorY, (BaseBackZ + BaseFrontZ) / 2f), Vector3.up, 44f * ScaleX, (BaseFrontZ - BaseBackZ) * ScaleZ, PavingTile);
+        BuildSpawnRoom(chunk, f);
 
         foreach (int side in new[] { -1, 1 })
         {
@@ -734,6 +766,50 @@ public static class DeadlockExpandedMap
         Box(chunk, f, stone, new Vector3(0f, 8.6f, BaseFrontZ), new Vector3(LaneHalfWidth * 2f + 2.4f, 1.2f, 1.2f), SandstoneTile, false);
         Sign(chunk, f.P(0f, 8.6f, BaseFrontZ + 0.66f), f.N(Vector3.forward), 12f, 1f, teamNeon[f.Faction], name, false);
         Sign(chunk, f.P(0f, 8.6f, BaseFrontZ - 0.66f), f.N(Vector3.back), 12f, 1f, teamNeon[f.Faction], name, false);
+    }
+
+    /// <summary>
+    /// The respawn room against the back of the base. Its glass front stops the rival from shooting
+    /// (or walking) at players who have just respawned while still letting everyone see out; the
+    /// way out is a doorway in each side wall, or the zipline that starts over the open roof.
+    /// </summary>
+    private static void BuildSpawnRoom(string chunk, Frame f)
+    {
+        Material stone = teamStone[f.Faction];
+        const float t = 0.6f;
+        float back = BaseBackZ, front = SpawnRoomFrontZ, hw = SpawnRoomHalfWidth, h = SpawnRoomWallHeight;
+        float doorMid = (SpawnDoorStart + SpawnDoorEnd) / 2f, door = SpawnDoorEnd - SpawnDoorStart;
+
+        foreach (int side in new[] { -1, 1 })
+        {
+            var s = new Frame(f.Half, side);
+
+            // Side wall in two pieces around the doorway, with a lintel and posts framing it.
+            Box(chunk, s, stone, new Vector3(hw, h / 2f, (back + SpawnDoorStart) / 2f), new Vector3(t, h, SpawnDoorStart - back), SandstoneTile, true);
+            Box(chunk, s, stone, new Vector3(hw, h / 2f, (SpawnDoorEnd + front) / 2f), new Vector3(t, h, front - SpawnDoorEnd), SandstoneTile, true);
+            Box(chunk, s, stone, new Vector3(hw, h - 0.7f, doorMid), new Vector3(t, 1.4f, door), SandstoneTile, false);
+            Box(chunk, s, metal, new Vector3(hw, (h - 1.4f) / 2f, SpawnDoorStart), new Vector3(t + 0.2f, h - 1.4f, 0.25f), 0f, false);
+            Box(chunk, s, metal, new Vector3(hw, (h - 1.4f) / 2f, SpawnDoorEnd), new Vector3(t + 0.2f, h - 1.4f, 0.25f), 0f, false);
+
+            // Team-coloured trim along the top of the wall and over the doorway.
+            Box(chunk, s, teamGlow[f.Faction], new Vector3(hw, h + 0.05f, (back + front) / 2f), new Vector3(t + 0.1f, 0.1f, front - back), 0f, false);
+            Box(chunk, s, teamGlow[f.Faction], new Vector3(hw, h - 1.45f, doorMid), new Vector3(t + 0.12f, 0.08f, door), 0f, false);
+        }
+
+        // Glass front between metal mullions, with a sill and a header.
+        Box(chunk, f, glass, new Vector3(0f, h / 2f, front), new Vector3(hw * 2f, h, 0.12f), 0f, true);
+
+        for (float x = -hw; x <= hw + 0.01f; x += hw / 2f)
+        {
+            Box(chunk, f, metal, new Vector3(x, h / 2f, front), new Vector3(0.18f, h, 0.24f), 0f, false);
+        }
+
+        Box(chunk, f, metal, new Vector3(0f, h + 0.12f, front), new Vector3(hw * 2f + 0.6f, 0.25f, 0.3f), 0f, false);
+        Box(chunk, f, metal, new Vector3(0f, 0.12f, front), new Vector3(hw * 2f, 0.24f, 0.3f), 0f, false);
+        Box(chunk, f, teamGlow[f.Faction], new Vector3(0f, h - 0.2f, front), new Vector3(hw * 2f, 0.06f, 0.26f), 0f, false);
+
+        // Respawn pad.
+        Quad(chunk, teamGlow[f.Faction], f.P(0f, MarkingY, PlayerSpawnPos.z), Vector3.up, 2.6f, 2.6f, 0f);
     }
 
     /// <summary>Times Square: neon signs on the blocks facing the plaza, kiosks and banners over the lane.</summary>
@@ -888,7 +964,7 @@ public static class DeadlockExpandedMap
                     Lamp(chunk, f.P(CourtyardBackX - 0.7f, 6.25f, z), 0.18f, neonYellow);
                 }
 
-                Quad(chunk, neonRed, f.P((AlleyOuterX + CourtyardBackX) / 2f, MarkingY, court.z), Vector3.up, CourtyardBackX - AlleyOuterX, 2f);
+                Quad(chunk, neonRed, f.P((AlleyOuterX + CourtyardBackX) / 2f, MarkingY, court.z), Vector3.up, (CourtyardBackX - AlleyOuterX) * ScaleX, 2f);
 
                 // Show posters for the two heroes, on the edge buildings only, not over the open
                 // courtyard, and beside the doors (which sit mid-building) rather than over them.
@@ -963,6 +1039,18 @@ public static class DeadlockExpandedMap
         Transform t = Marker(parent, "Walker (placeholder)", position, rotation);
         Material stone = teamStone[faction], glow = teamGlow[faction];
 
+        GameObject model = AssetDatabase.LoadAssetAtPath<GameObject>($"{ModelDir}/Walker.glb");
+
+        if (model != null)
+        {
+            ModelForm(t, "Model", model, WalkerScale, Vector3.zero);
+            // Glowing core under the body in the team's colour, so the side reads at a glance.
+            Prim(PrimitiveType.Sphere, "Core", t, new Vector3(0f, 5.2f, 0f), Vector3.one * 1.2f, glow, false);
+            return;
+        }
+
+        Debug.LogWarning($"[Deadlock Setup] {ModelDir}/Walker.glb missing; Walker placeholder built from primitives.");
+
         foreach (int x in new[] { -1, 1 })
         {
             foreach (int z in new[] { -1, 1 })
@@ -1019,6 +1107,17 @@ public static class DeadlockExpandedMap
         Material stone = teamStone[faction], glow = teamGlow[faction];
 
         Prim(PrimitiveType.Cylinder, "Platform", t, new Vector3(0f, 0.05f, 0f), new Vector3(7f, 0.05f, 7f), stone, false);
+
+        // The real shrine: the Hidden King's speaker tower, the Archmother's book stand.
+        GameObject model = AssetDatabase.LoadAssetAtPath<GameObject>($"{ModelDir}/{(faction == Faction.Player ? "Amber" : "Sapphire")}_Shrine.glb");
+
+        if (model != null)
+        {
+            ModelForm(t, "Model", model, ShrineScale, Vector3.zero);
+            Prim(PrimitiveType.Cylinder, "Body", t, new Vector3(0f, 3f, 0f), new Vector3(2.2f, 3f, 2.2f), stone, true).GetComponent<MeshRenderer>().enabled = false;
+            return;
+        }
+
         Prim(PrimitiveType.Cube, "Pillar", t, new Vector3(0f, 1.8f, 0f), new Vector3(0.9f, 3.6f, 0.9f), stone, true);
         Prim(PrimitiveType.Sphere, "Core", t, new Vector3(0f, 4.2f, 0f), Vector3.one * 1.1f, glow, false);
 
@@ -1052,6 +1151,31 @@ public static class DeadlockExpandedMap
         Material stone = teamStone[faction], glow = teamGlow[faction];
 
         Prim(PrimitiveType.Cylinder, "Dais", t, new Vector3(0f, 0.05f, 0f), new Vector3(12f, 0.05f, 12f), stone, false);
+
+        // The real models: the full patron, and its weak form (shown once the first health bar is gone).
+        string modelName = king ? "Hidden_King" : "Archmother";
+        GameObject full = AssetDatabase.LoadAssetAtPath<GameObject>($"{ModelDir}/{modelName}.glb");
+        GameObject weak = AssetDatabase.LoadAssetAtPath<GameObject>($"{ModelDir}/{modelName}_Weak.glb");
+
+        if (full != null && weak != null)
+        {
+            float scale = king ? HiddenKingScale : ArchmotherScale;
+            GameObject normalForm = ModelForm(t, "NormalForm", full, scale, Vector3.zero);
+            GameObject weakForm = ModelForm(t, "WeakForm", weak, scale, new Vector3(0f, 7.5f, 0f));
+            weakForm.SetActive(false);
+
+            // A collider on the dais' centre so locomotion walks around the patron, not through it.
+            Prim(PrimitiveType.Cylinder, "Body", t, new Vector3(0f, 4f, 0f), new Vector3(3f, 4f, 3f), stone, true).GetComponent<MeshRenderer>().enabled = false;
+
+            PatronPhaseVisual phases = t.gameObject.AddComponent<PatronPhaseVisual>();
+            var so = new SerializedObject(phases);
+            so.FindProperty("normalForm").objectReferenceValue = normalForm;
+            so.FindProperty("weakForm").objectReferenceValue = weakForm;
+            so.ApplyModifiedPropertiesWithoutUndo();
+            return;
+        }
+
+        Debug.LogWarning($"[Deadlock Setup] {modelName}.glb / {modelName}_Weak.glb missing in {ModelDir}; patron placeholder built from primitives.");
         Prim(PrimitiveType.Cube, "Post", t, new Vector3(-3.2f, 5f, -0.5f), new Vector3(0.7f, 10f, 0.7f), king ? wood : stone, true);
         Prim(PrimitiveType.Cube, "Post", t, new Vector3(3.2f, 5f, -0.5f), new Vector3(0.7f, 10f, 0.7f), king ? wood : stone, true);
         Prim(PrimitiveType.Cube, "Beam", t, new Vector3(0f, 9f, -0.5f), new Vector3(7.2f, 0.7f, 0.7f), king ? wood : stone, false);
@@ -1080,6 +1204,103 @@ public static class DeadlockExpandedMap
 
         // The orb it collapses into in its second phase, floating above.
         Prim(PrimitiveType.Sphere, "Orb", t, new Vector3(0f, 13f, 0f), Vector3.one * 1.8f, glow, false);
+    }
+
+    /// <summary>A model instance under <paramref name="parent"/>, turned to face the parent's forward (the models face -Z).</summary>
+    private static GameObject ModelForm(Transform parent, string name, GameObject model, float scale, Vector3 offset)
+    {
+        var holder = new GameObject(name);
+        holder.transform.SetParent(parent, false);
+        holder.transform.localPosition = offset;
+
+        var instance = (GameObject)PrefabUtility.InstantiatePrefab(model, holder.transform);
+        instance.transform.localPosition = Vector3.zero;
+        instance.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
+        instance.transform.localScale = Vector3.one * scale;
+        StaticizeSkins(instance);
+        OpaqueMaterials(instance);
+        return holder;
+    }
+
+    /// <summary>
+    /// Some extracted models come rigged but with unusable weights (the Sapphire shrine's skin
+    /// collapses to nothing). None of them is animated here, so draw every skinned mesh as a plain
+    /// static mesh in its authored pose.
+    /// </summary>
+    public static void StaticizeSkins(GameObject instance)
+    {
+        foreach (SkinnedMeshRenderer skin in instance.GetComponentsInChildren<SkinnedMeshRenderer>(true))
+        {
+            var holder = new GameObject(skin.name + " (static)");
+            holder.transform.SetParent(skin.transform, false);
+            holder.AddComponent<MeshFilter>().sharedMesh = skin.sharedMesh;
+            holder.AddComponent<MeshRenderer>().sharedMaterials = skin.sharedMaterials;
+            Object.DestroyImmediate(skin);
+        }
+    }
+
+    /// <summary>
+    /// The extracted models come with alpha-tested or transparent glTF materials, but Source 2 packs
+    /// other data in the textures' alpha, so the patrons came out cut away or ghostly. Swap every
+    /// material for an opaque URP/Lit copy with the same colour, normal and emission maps.
+    /// </summary>
+    public static void OpaqueMaterials(GameObject instance)
+    {
+        const string dir = "Assets/Art/Materials/Models";
+        if (!AssetDatabase.IsValidFolder(dir)) AssetDatabase.CreateFolder("Assets/Art/Materials", "Models");
+
+        foreach (Renderer r in instance.GetComponentsInChildren<Renderer>(true))
+        {
+            Material[] mats = r.sharedMaterials;
+
+            for (int i = 0; i < mats.Length; i++)
+            {
+                Material src = mats[i];
+                if (src == null || src.shader.name == "Universal Render Pipeline/Lit") continue;
+
+                string safe = string.Join("_", src.name.Split(System.IO.Path.GetInvalidFileNameChars()));
+                string path = $"{dir}/Opaque_{safe}.mat";
+                Material m = AssetDatabase.LoadAssetAtPath<Material>(path);
+
+                if (m == null)
+                {
+                    m = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+                    AssetDatabase.CreateAsset(m, path);
+                }
+
+                Texture baseMap = src.HasProperty("baseColorTexture") ? src.GetTexture("baseColorTexture") : null;
+                Color baseColor = src.HasProperty("baseColorFactor") ? src.GetColor("baseColorFactor") : Color.white;
+                baseColor.a = 1f;
+                m.SetTexture("_BaseMap", baseMap);
+                m.SetColor("_BaseColor", baseColor);
+                m.SetFloat("_Smoothness", 0.35f);
+                m.SetFloat("_Metallic", src.HasProperty("metallicFactor") ? src.GetFloat("metallicFactor") * 0.5f : 0f);
+
+                Texture normal = src.HasProperty("normalTexture") ? src.GetTexture("normalTexture") : null;
+                m.SetTexture("_BumpMap", normal);
+                if (normal != null) m.EnableKeyword("_NORMALMAP"); else m.DisableKeyword("_NORMALMAP");
+
+                Texture emissive = src.HasProperty("emissiveTexture") ? src.GetTexture("emissiveTexture") : null;
+                Color emission = src.HasProperty("emissiveFactor") ? src.GetColor("emissiveFactor") : Color.black;
+
+                if (emissive != null || emission.maxColorComponent > 0.01f)
+                {
+                    m.EnableKeyword("_EMISSION");
+                    m.SetTexture("_EmissionMap", emissive);
+                    m.SetColor("_EmissionColor", emissive != null && emission.maxColorComponent < 0.01f ? Color.white : emission);
+                    m.globalIlluminationFlags = MaterialGlobalIlluminationFlags.None;
+                }
+                else
+                {
+                    m.DisableKeyword("_EMISSION");
+                }
+
+                EditorUtility.SetDirty(m);
+                mats[i] = m;
+            }
+
+            r.sharedMaterials = mats;
+        }
     }
 
     /// <summary>
@@ -1191,7 +1412,7 @@ public static class DeadlockExpandedMap
         ground.transform.SetPositionAndRotation(new Vector3(0f, -0.5f, 0f), Quaternion.identity);
         ground.transform.localScale = Vector3.one;
 
-        Vector3 size = new Vector3(MapHalfWidth * 2f, 1f, MapHalfLength * 2f);
+        Vector3 size = new Vector3(MapHalfWidth * 2f * ScaleX, 1f, MapHalfLength * 2f * ScaleZ);
         var data = new MeshData();
         data.Face(new Vector3(0f, 0.5f, 0f), Vector3.up, Vector3.forward, size.x / 2f, size.z / 2f, PavingTile);
 
@@ -1231,14 +1452,14 @@ public static class DeadlockExpandedMap
             {
                 GameObject point = new GameObject($"Waypoint_{i}");
                 point.transform.SetParent(laneObject.transform, false);
-                point.transform.position = new Vector3(0f, 0f, WaypointZ[i]);
+                point.transform.position = World(0f, 0f, WaypointZ[i]);
                 array.GetArrayElementAtIndex(i).objectReferenceValue = point.transform;
             }
 
             so.ApplyModifiedPropertiesWithoutUndo();
         }
 
-        float gate = WaypointZ[WaypointZ.Length - 1];
+        float gate = WaypointZ[WaypointZ.Length - 1] * ScaleZ;
 
         // Waves take about a minute to cross now, so allow a third one on the field.
         Place("Spawner_Amber", new Vector3(0f, 0f, -gate), Quaternion.identity, AllowThreeWaves);
@@ -1260,8 +1481,8 @@ public static class DeadlockExpandedMap
             if (rig.TryGetComponent(out ComfortLocomotion locomotion))
             {
                 var so = new SerializedObject(locomotion);
-                so.FindProperty("laneX").vector2Value = new Vector2(-MapHalfWidth + 0.7f, MapHalfWidth - 0.7f);
-                so.FindProperty("laneZ").vector2Value = new Vector2(-MapHalfLength + 0.7f, MapHalfLength - 0.7f);
+                so.FindProperty("laneX").vector2Value = new Vector2(-MapHalfWidth * ScaleX + 0.7f, MapHalfWidth * ScaleX - 0.7f);
+                so.FindProperty("laneZ").vector2Value = new Vector2(-MapHalfLength * ScaleZ + 0.7f, MapHalfLength * ScaleZ - 0.7f);
                 so.ApplyModifiedPropertiesWithoutUndo();
             }
         }
@@ -1292,6 +1513,6 @@ public static class DeadlockExpandedMap
     {
         // Farther than the old street so the plaza reads from the gate, close enough to hide the map edge.
         RenderSettings.fogStartDistance = 30f;
-        RenderSettings.fogEndDistance = 150f;
+        RenderSettings.fogEndDistance = 190f;
     }
 }

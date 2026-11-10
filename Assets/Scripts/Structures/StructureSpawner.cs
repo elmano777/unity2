@@ -29,6 +29,61 @@ public class StructureSpawner : MonoBehaviour
     /// <summary>The tower once it exists on this machine; null before that.</summary>
     public Structure Spawned { get; private set; }
 
+    /// <summary>
+    /// True when the prefab carries its own looks (the Guardian, the base guardians). The Walker,
+    /// effigies and patron are logic only: their looks are part of the map.
+    /// </summary>
+    public bool PrefabHasLooks
+    {
+        get
+        {
+            if (prefab == null) return false;
+
+            foreach (Renderer r in prefab.GetComponentsInChildren<Renderer>(true))
+            {
+                if (r is LineRenderer || r is ParticleSystemRenderer) continue;
+                if (r.name == "Shield" || r.GetComponentInParent<HealthBar>(true) != null) continue;
+                return true;
+            }
+
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// A local, inert copy of the tower: only its looks. Used by the practice, which takes the
+    /// player's own side out of play but should still show it. It does not shoot, cannot be hit,
+    /// is not an objective and minions ignore it.
+    /// </summary>
+    public GameObject SpawnScenery()
+    {
+        if (prefab == null) return null;
+
+        GameObject copy = Instantiate(prefab, transform.position, transform.rotation);
+        copy.name = $"{prefab.name} (scenery)";
+
+        foreach (Behaviour b in copy.GetComponentsInChildren<Behaviour>(true))
+        {
+            if (b is Animator) continue; // keep its idle pose moving
+            b.enabled = false;
+        }
+
+        foreach (Collider c in copy.GetComponentsInChildren<Collider>(true))
+        {
+            c.enabled = false;
+        }
+
+        foreach (HealthBar bar in copy.GetComponentsInChildren<HealthBar>(true))
+        {
+            bar.gameObject.SetActive(false);
+        }
+
+        Transform shieldObject = copy.transform.Find("Shield");
+        if (shieldObject != null) shieldObject.gameObject.SetActive(false);
+
+        return copy;
+    }
+
     private IEnumerator Start()
     {
         yield return new WaitUntil(() => MatchNet.CanSpawnWorld);
