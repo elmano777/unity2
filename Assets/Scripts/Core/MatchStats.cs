@@ -7,9 +7,6 @@ public enum MatchResult
     Abandoned = 0,
     Win = 1,
     Lose = 2,
-
-    /// <summary>The 25-minute cap ran out with both patrons standing.</summary>
-    TimeUp = 3,
 }
 
 /// <summary>The optional like/dislike the player gives on the summary screen (RF-14).</summary>
@@ -77,6 +74,15 @@ public class MatchStats
 
     /// <summary>Seconds spent behind cover, as a rough read on whether RF-15 gets used.</summary>
     public float secondsInCover;
+
+    /// <summary>Times this player brought the rival's hero down.</summary>
+    public int heroKills;
+
+    /// <summary>Times this player's hero went down (the rival's kills, seen from here).</summary>
+    public int deaths;
+
+    /// <summary>This player's own towers the rival destroyed (the patron not counted).</summary>
+    public int towersLost;
 
     // ---- Happiness (HEART) ----
 

@@ -37,9 +37,30 @@ public class ComfortLocomotion : MonoBehaviour
     [SerializeField] private Vector2 laneX = new Vector2(-6.5f, 6.5f);
     [SerializeField] private Vector2 laneZ = new Vector2(-29f, 29f);
 
+    [Header("Ground")]
+    [Tooltip("Layers the player stands on: the street, ramps, bridge decks. Left empty it is the Ground layer.")]
+    [SerializeField] private LayerMask groundLayers;
+
+    [Tooltip("Highest ledge the player steps onto without a ramp, in metres. Also how far above the feet the floor is looked for, so walking under a bridge never snaps up onto it.")]
+    [SerializeField] private float stepHeight = 0.6f;
+
+    [Tooltip("Fastest the view goes up or down with the floor, in m/s. Ramps stay well below this; it only softens a ledge.")]
+    [SerializeField] private float riseSpeed = 5f;
+    [SerializeField] private float fallSpeed = 7f;
+
     private InputAction move;
     private InputAction turn;
     private bool turnArmed = true;
+    private PlayerSpawnHeight spawnHeight;
+    private bool grounded;
+    private float feetY;
+    private Vector3 lastHeadFlat;
+
+    /// <summary>Height of the floor under the player, once one has been found.</summary>
+    public float FloorHeight => grounded ? feetY : Rig.position.y;
+
+    /// <summary>Metres the player floats above the floor (the storm ability). Eased by whoever sets it.</summary>
+    public float HeightOffset { get; set; }
 
     /// <summary>0 when standing still, 1 at full stick speed. Read by the vignette.</summary>
     public float Speed01 { get; private set; }
@@ -108,6 +129,13 @@ public class ComfortLocomotion : MonoBehaviour
             OVRCameraRig cameraRig = rig.GetComponentInChildren<OVRCameraRig>() ?? FindObjectOfType<OVRCameraRig>();
             head = cameraRig != null ? cameraRig.centerEyeAnchor : Camera.main?.transform;
         }
+
+        if (groundLayers.value == 0)
+        {
+            groundLayers = LayerMask.GetMask("Ground");
+        }
+
+        spawnHeight = FindObjectOfType<PlayerSpawnHeight>();
     }
 
     private void OnEnable()
@@ -145,6 +173,81 @@ public class ComfortLocomotion : MonoBehaviour
 
         Walk(move.ReadValue<Vector2>());
         SnapTurn(turn.ReadValue<Vector2>().x);
+        FollowGround();
+    }
+
+    /// <summary>
+    /// Keeps the rig on the floor under the head, so ramps, stairs and bridge decks carry the player
+    /// up and down. The floor is looked for from just above the feet: standing under a bridge finds
+    /// the street, standing on it finds the deck. Scenes without any Ground collider are left alone.
+    /// </summary>
+    private void FollowGround()
+    {
+        Vector3 flat = new Vector3(head.position.x, 0f, head.position.z);
+
+        // Something else put the player somewhere far away (a respawn): no easing from the old floor.
+        bool jumped = grounded && (flat - lastHeadFlat).sqrMagnitude > 9f;
+        lastHeadFlat = flat;
+
+        float from = grounded ? feetY + stepHeight : rig.position.y + 1f;
+        float floor;
+
+        if (Physics.Raycast(new Vector3(flat.x, from, flat.z), Vector3.down, out RaycastHit hit, 40f,
+                groundLayers, QueryTriggerInteraction.Ignore))
+        {
+            floor = hit.point.y;
+        }
+        else if (!NearestFloor(flat, grounded ? feetY : rig.position.y, out floor))
+        {
+            return;
+        }
+
+        if (!grounded || jumped)
+        {
+            feetY = floor;
+            grounded = true;
+        }
+        else
+        {
+            feetY = Mathf.MoveTowards(feetY, floor, (floor > feetY ? riseSpeed : fallSpeed) * Time.deltaTime);
+        }
+
+        float lift = spawnHeight != null ? spawnHeight.Lift : 0f;
+
+        if (spawnHeight != null)
+        {
+            spawnHeight.Managed = true;
+        }
+
+        Vector3 position = rig.position;
+        position.y = feetY + lift + HeightOffset;
+        rig.position = position;
+    }
+
+    /// <summary>
+    /// Nothing under the feet (the player was moved to a spot whose floor is higher than where they
+    /// were): take the walkable surface closest in height to where they stand.
+    /// </summary>
+    private bool NearestFloor(Vector3 flat, float reference, out float floor)
+    {
+        floor = 0f;
+        bool found = false;
+        float best = float.MaxValue;
+
+        foreach (RaycastHit candidate in Physics.RaycastAll(new Vector3(flat.x, reference + 60f, flat.z), Vector3.down, 120f,
+                     groundLayers, QueryTriggerInteraction.Ignore))
+        {
+            float distance = Mathf.Abs(candidate.point.y - reference);
+
+            if (distance < best)
+            {
+                best = distance;
+                floor = candidate.point.y;
+                found = true;
+            }
+        }
+
+        return found;
     }
 
     private void Walk(Vector2 stick)
@@ -164,7 +267,7 @@ public class ComfortLocomotion : MonoBehaviour
 
         // Cast from the player's actual body (where the head is), not the rig origin, which can
         // be a metre away if the player has walked around their play space.
-        Vector3 origin = new Vector3(head.position.x, rig.position.y + 1f, head.position.z);
+        Vector3 origin = new Vector3(head.position.x, FloorHeight + 1f, head.position.z);
         step = Slide(origin, step);
         step = Slide(origin, step);
 

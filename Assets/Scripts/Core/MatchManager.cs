@@ -2,7 +2,8 @@ using UnityEngine;
 
 /// <summary>
 /// Runs one ritual: holds the match state, keeps the running tally that becomes a
-/// <see cref="MatchStats"/> record, enforces the time cap and decides when the match is over.
+/// <see cref="MatchStats"/> record and decides when the match is over. There is no time limit:
+/// the ritual ends only when a patron falls (or the player leaves).
 /// </summary>
 /// <remarks>
 /// Every counter is accumulated here by listening to <see cref="GameEvents"/> rather than having
@@ -15,28 +16,39 @@ public class MatchManager : MonoBehaviour
     public static MatchManager Instance { get; private set; }
 
     [Header("Rules")]
-    [Tooltip("Hard cap on a ritual, in minutes. The design brief sets this at about 25.")]
-    [SerializeField] private float matchLengthMinutes = 25f;
-
     [Tooltip("Seconds of patron dialogue before the player is free to act.")]
     [SerializeField] private float preMatchSeconds = 3f;
+
+    [Header("Cover (RF-15)")]
+    [Tooltip("The player counts as in cover when a wall or block this close (metres) stands between their head and a threat.")]
+    [SerializeField] private float coverReach = 2.5f;
+
+    [Tooltip("Only threats this close (metres) count: a tower or rival further away isn't something to hide from.")]
+    [SerializeField] private float threatRange = 30f;
 
     [Header("Debug")]
     [Tooltip("Logs every state change and stat increment to the console.")]
     [SerializeField] private bool verboseLogging;
 
+    private const float CoverSampleSeconds = 0.25f;
+
     private readonly MatchStats stats = new MatchStats();
+    private readonly RaycastHit[] coverHits = new RaycastHit[8];
     private float elapsedSeconds;
+    private float nextCoverSample;
     private bool statsWritten;
 
     /// <summary>Current phase of the ritual.</summary>
     public MatchState State { get; private set; } = MatchState.PreMatch;
 
+    /// <summary>
+    /// True once a patron has fallen or the player left: towers, minions, weapons and damage all
+    /// stop, so nothing happens behind the summary screen.
+    /// </summary>
+    public static bool IsOver => Instance != null && (Instance.State == MatchState.Win || Instance.State == MatchState.Lose);
+
     /// <summary>Seconds played so far.</summary>
     public float Elapsed => elapsedSeconds;
-
-    /// <summary>Seconds left before the cap, floored at zero.</summary>
-    public float Remaining => Mathf.Max(0f, matchLengthMinutes * 60f - elapsedSeconds);
 
     /// <summary>
     /// The running record for this match. Read it for the end screen; it is only final once the
@@ -69,6 +81,7 @@ public class MatchManager : MonoBehaviour
         GameEvents.AbilityUsed += OnAbilityUsed;
         GameEvents.ItemPurchased += OnItemPurchased;
         GameEvents.ShotFired += OnShotFired;
+        GameEvents.Died += OnDied;
     }
 
     private void OnDisable()
@@ -80,6 +93,27 @@ public class MatchManager : MonoBehaviour
         GameEvents.AbilityUsed -= OnAbilityUsed;
         GameEvents.ItemPurchased -= OnItemPurchased;
         GameEvents.ShotFired -= OnShotFired;
+        GameEvents.Died -= OnDied;
+    }
+
+    /// <summary>Hero kills and deaths, read from which body fell: the rival's or this player's.</summary>
+    private void OnDied(GameObject victim, DamageInfo info)
+    {
+        if (State != MatchState.Playing || victim == null)
+        {
+            return;
+        }
+
+        string layer = LayerMask.LayerToName(victim.layer);
+
+        if (layer == "Rival")
+        {
+            stats.heroKills += 1;
+        }
+        else if (layer == "PlayerBody")
+        {
+            stats.deaths += 1;
+        }
     }
 
     private void Start()
@@ -107,10 +141,113 @@ public class MatchManager : MonoBehaviour
 
         elapsedSeconds += Time.deltaTime;
 
-        if (Remaining <= 0f)
+        if (Time.time >= nextCoverSample)
         {
-            Finish(MatchState.TimeUp, MatchResult.TimeUp);
+            nextCoverSample = Time.time + CoverSampleSeconds;
+
+            if (IsBehindCover())
+            {
+                stats.secondsInCover += CoverSampleSeconds;
+            }
         }
+    }
+
+    /// <summary>
+    /// The player is behind cover when, for the closest threat in range (a hostile tower still
+    /// standing, or the rival hero), the line from it to the player's head is blocked by scenery
+    /// close to the player. A wall far away doesn't count: that is just being out of sight.
+    /// </summary>
+    private bool IsBehindCover()
+    {
+        Camera cam = Camera.main;
+
+        if (cam == null)
+        {
+            return false;
+        }
+
+        Vector3 head = cam.transform.position;
+        Faction local = MatchNet.LocalFaction;
+        bool found = false;
+        Vector3 threat = Vector3.zero;
+        float best = threatRange;
+
+        foreach (Structure s in Structure.Standing)
+        {
+            if (s is Tower && s.IsStanding && FactionUtility.IsHostile(s.Faction, local))
+            {
+                Vector3 p = s.transform.position + Vector3.up * 3f;
+                float d = Vector3.Distance(p, head);
+
+                if (d < best)
+                {
+                    best = d;
+                    threat = p;
+                    found = true;
+                }
+            }
+        }
+
+        NetworkPlayer rival = FindRival();
+
+        if (rival != null)
+        {
+            Vector3 p = rival.transform.position + Vector3.up * 1.5f;
+            float d = Vector3.Distance(p, head);
+
+            if (d < best)
+            {
+                threat = p;
+                found = true;
+            }
+        }
+
+        if (!found)
+        {
+            return false;
+        }
+
+        // Cast from the player toward the threat: the first scenery hit within reach is the cover.
+        Vector3 toThreat = threat - head;
+        float reach = Mathf.Min(coverReach, toThreat.magnitude - 0.5f);
+        int ground = LayerMask.GetMask("Ground", "Default");
+        int count = Physics.RaycastNonAlloc(head, toThreat.normalized, coverHits, reach, ground, QueryTriggerInteraction.Ignore);
+
+        for (int i = 0; i < count; i++)
+        {
+            // Ignore the floor under the player's own feet: the ray only counts walls and blocks.
+            if (coverHits[i].normal.y < 0.7f)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private NetworkPlayer cachedRival;
+    private float nextRivalSearch;
+
+    /// <summary>The other player's hero, looked up every couple of seconds (null in single player).</summary>
+    private NetworkPlayer FindRival()
+    {
+        if (cachedRival != null || Time.time < nextRivalSearch)
+        {
+            return cachedRival;
+        }
+
+        nextRivalSearch = Time.time + 2f;
+
+        foreach (NetworkPlayer p in FindObjectsOfType<NetworkPlayer>())
+        {
+            if (p != NetworkPlayer.Local)
+            {
+                cachedRival = p;
+                break;
+            }
+        }
+
+        return cachedRival;
     }
 
     /// <summary>Ends the pre-match dialogue and hands control to the player.</summary>
@@ -182,6 +319,10 @@ public class MatchManager : MonoBehaviour
         if (faction == FactionUtility.Opposite(MatchNet.LocalFaction))
         {
             stats.towersDestroyed += 1;
+        }
+        else if (faction == MatchNet.LocalFaction)
+        {
+            stats.towersLost += 1;
         }
     }
 

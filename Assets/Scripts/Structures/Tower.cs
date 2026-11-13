@@ -101,7 +101,7 @@ public class Tower : Structure
             beam.enabled = false;
         }
 
-        if (disabled || !IsStanding)
+        if (disabled || !IsStanding || MatchManager.IsOver)
         {
             HasAimPoint = false;
             return;

@@ -61,11 +61,6 @@ public class MatchOutcome : MonoBehaviour
                 CancelInvoke(nameof(ClearHint));
                 GameEvents.RaiseHint("DERROTA\nTu patrón ha caído.");
                 break;
-
-            case MatchState.TimeUp:
-                CancelInvoke(nameof(ClearHint));
-                GameEvents.RaiseHint("Se acabó el tiempo del ritual.");
-                break;
         }
     }
 

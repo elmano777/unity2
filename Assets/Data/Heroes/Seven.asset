@@ -39,3 +39,10 @@ MonoBehaviour:
   - But it is not enough.
   - Complete the ritual, Seven.
   - And find yourself in the court of The Hidden King.
+  render: {fileID: 2800000, guid: 6b2bde8dd618fa642bff2661c3d7d005, type: 3}
+  selectBackground: {fileID: 2800000, guid: 34df1928e3a2fc34b8bd7a29e6c07800, type: 3}
+  nameLogo: {fileID: 2800000, guid: 39ae9950c1c9b3f40943e1570999c767, type: 3}
+  selectCover: {fileID: 2800000, guid: cf05fe0956c40cd418282a24c222e1ad, type: 3}
+  hudNormal: {fileID: 2800000, guid: 96334947242a4624bb9db55a813dd830, type: 3}
+  hudCritical: {fileID: 2800000, guid: b8b5f9b37936acc4288a99b87fbb8b2e, type: 3}
+  hudStreak: {fileID: 2800000, guid: 4e2badb2ae99c0c428bfb6ea364d23be, type: 3}

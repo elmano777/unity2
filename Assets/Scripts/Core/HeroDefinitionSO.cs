@@ -64,4 +64,26 @@ public class HeroDefinitionSO : ScriptableObject
     [Tooltip("Story lines shown together (one per line) on a black screen after confirming this hero, while entryClip plays.")]
     [TextArea]
     public string[] introLines;
+
+    [Header("Art (from the wiki)")]
+    [Tooltip("Full-body render with a transparent background: the big figure on the MVP end screen.")]
+    public Texture2D render;
+
+    [Tooltip("The hero's painted backdrop, shown behind the render on the end screen and the select card.")]
+    public Texture2D selectBackground;
+
+    [Tooltip("The hero's name as a white logo (optional: the name is written in text when missing).")]
+    public Texture2D nameLogo;
+
+    [Tooltip("Tall cover art floated over the hologram on the hero-select screen.")]
+    public Texture2D selectCover;
+
+    [Tooltip("HUD portrait while all is well.")]
+    public Texture2D hudNormal;
+
+    [Tooltip("HUD portrait when health is critical.")]
+    public Texture2D hudCritical;
+
+    [Tooltip("HUD portrait while on a streak (a kill, a structure down, several minions in a row).")]
+    public Texture2D hudStreak;
 }

@@ -9,6 +9,9 @@ using UnityEngine;
 /// This switches the lane to Floor Level so the real standing height is used, and if tracking
 /// still reports a head too low (no floor calibrated, Link in the editor, no headset at all) it
 /// lifts the rig so the eyes end up at <see cref="standingEyeHeight"/>.
+/// <para>Where the floor has slopes, <see cref="ComfortLocomotion"/> owns the rig's height: it sets
+/// <see cref="Managed"/> and adds <see cref="Lift"/> on top of the floor it finds, and this
+/// component only works the lift out.</para>
 /// </remarks>
 public class PlayerSpawnHeight : MonoBehaviour
 {
@@ -27,6 +30,12 @@ public class PlayerSpawnHeight : MonoBehaviour
 
     private float elapsed;
     private float spawnRigHeight;
+
+    /// <summary>Metres the rig is raised above the floor so the eyes are at standing height. 0 with real floor tracking.</summary>
+    public float Lift { get; private set; }
+
+    /// <summary>Set by the locomotion when it places the rig on the floor itself; this then only reports <see cref="Lift"/>.</summary>
+    public bool Managed { get; set; }
 
     private void Awake()
     {
@@ -66,12 +75,15 @@ public class PlayerSpawnHeight : MonoBehaviour
         // Worked out from the rig's spawn height each frame rather than nudged, so once floor
         // tracking kicks in the lift goes back to zero instead of stacking on top of it.
         float headAboveRig = head.position.y - rig.position.y;
-        float spawnEyeHeight = spawnRigHeight + headAboveRig - floorHeight;
-        float lift = spawnEyeHeight < minEyeHeight ? standingEyeHeight - spawnEyeHeight : 0f;
+        float spawnEyeHeight = Managed ? headAboveRig : spawnRigHeight + headAboveRig - floorHeight;
+        Lift = spawnEyeHeight < minEyeHeight ? standingEyeHeight - spawnEyeHeight : 0f;
 
-        Vector3 position = rig.position;
-        position.y = spawnRigHeight + lift;
-        rig.position = position;
+        if (!Managed)
+        {
+            Vector3 position = rig.position;
+            position.y = spawnRigHeight + Lift;
+            rig.position = position;
+        }
 
         elapsed += Time.deltaTime;
 

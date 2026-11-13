@@ -56,6 +56,10 @@ public static class DeadlockOnlineMatch
             }
         }
 
+        // The neutral camps' creature from step 32, if it has run.
+        GameObject neutral = AssetDatabase.LoadAssetAtPath<GameObject>(DeadlockNeutralCamps.PrefabPath);
+        if (neutral != null) networked.Add(neutral);
+
         foreach (string path in WeaponPaths)
         {
             EditPrefab(path, root => AddLayerToMask(root.GetComponent<Weapon>(), "hitMask", rivalBit));

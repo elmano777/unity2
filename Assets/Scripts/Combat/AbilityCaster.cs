@@ -410,7 +410,7 @@ public class AbilityCaster : MonoBehaviour
                 {
                     IDamageable target = hit.collider.GetComponentInParent<IDamageable>();
 
-                    if (target != null && target.IsAlive && target.Faction != Faction.Neutral)
+                    if (target != null && target.IsAlive && !FactionUtility.IsProp(target))
                     {
                         // The shooter's own body and allies don't block the shot.
                         if (!FactionUtility.IsHostile(MatchNet.LocalFaction, target.Faction) || !struck.Add(target))
@@ -540,9 +540,19 @@ public class AbilityCaster : MonoBehaviour
             // Up over the first second, down over the last one.
             float k = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(t / 1f)) * Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((seconds - t) / 1f));
             float lift = ability.riseHeight * k;
-            Vector3 p = body.position;
-            p.y += lift - lifted;
-            body.position = p;
+
+            if (locomotion != null)
+            {
+                // The locomotion keeps the rig on the floor (ramps, bridges): it adds the lift itself.
+                locomotion.HeightOffset = lift;
+            }
+            else
+            {
+                Vector3 p = body.position;
+                p.y += lift - lifted;
+                body.position = p;
+            }
+
             lifted = lift;
 
             if (t >= nextTick)
@@ -556,9 +566,16 @@ public class AbilityCaster : MonoBehaviour
         }
 
         // Back down exactly where the storm took off from (height only: the walk keeps its place).
-        Vector3 end = body.position;
-        end.y = baseY;
-        body.position = end;
+        if (locomotion != null)
+        {
+            locomotion.HeightOffset = 0f;
+        }
+        else
+        {
+            Vector3 end = body.position;
+            end.y = baseY;
+            body.position = end;
+        }
 
         IsChanneling = false;
         LocalChanneling = false;
@@ -575,7 +592,7 @@ public class AbilityCaster : MonoBehaviour
         {
             IDamageable target = overlapBuffer[i].GetComponentInParent<IDamageable>();
 
-            if (target == null || !target.IsAlive || target.Faction == Faction.Neutral || !struck.Add(target)
+            if (target == null || !target.IsAlive || FactionUtility.IsProp(target) || !struck.Add(target)
                 || !FactionUtility.IsHostile(MatchNet.LocalFaction, target.Faction))
             {
                 continue;
@@ -662,7 +679,7 @@ public class AbilityCaster : MonoBehaviour
             IDamageable target = overlapBuffer[i].GetComponentInParent<IDamageable>();
 
             // Souls are neutral: an ability is not a way to vacuum them up.
-            if (target == null || !target.IsAlive || target.Faction == Faction.Neutral || !struck.Add(target))
+            if (target == null || !target.IsAlive || FactionUtility.IsProp(target) || !struck.Add(target))
             {
                 continue;
             }

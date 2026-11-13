@@ -97,7 +97,8 @@ public class Health : MonoBehaviour, IDamageable
 
     public void TakeDamage(DamageInfo info)
     {
-        if (!IsAlive || invulnerable)
+        // Once a patron has fallen nobody can be hurt any more: the summary is read in peace.
+        if (!IsAlive || invulnerable || MatchManager.IsOver)
         {
             return;
         }

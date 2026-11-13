@@ -165,7 +165,7 @@ public static class AbilityEffects
         {
             IDamageable target = buffer[i].GetComponentInParent<IDamageable>();
 
-            if (target == null || !target.IsAlive || target.Faction == Faction.Neutral || !seen.Add(target)
+            if (target == null || !target.IsAlive || FactionUtility.IsProp(target) || !seen.Add(target)
                 || !FactionUtility.IsHostile(caster, target.Faction))
             {
                 continue;
@@ -355,7 +355,7 @@ public static class AbilityEffects
         {
             IDamageable target = buffer[i].GetComponentInParent<IDamageable>();
 
-            if (target != null && target.IsAlive && target.Faction != Faction.Neutral && heldSet.Add(target)
+            if (target != null && target.IsAlive && !FactionUtility.IsProp(target) && heldSet.Add(target)
                 && FactionUtility.IsHostile(caster, target.Faction))
             {
                 held.Add(buffer[i].transform);

@@ -1018,7 +1018,8 @@ public static class DeadlockAtmosphere
     private const float RouteHalf = 91.3f;
     // Steel gantries that carry the rope (Amber half; mirrored for Sapphire): in the spawn room,
     // behind the base gate, then along the avenue.
-    private static readonly float[] GantryZ = { -91.3f, -71.5f, -56f, -40f, -30f, -16f, 0f, 16f, 30f, 40f, 56f, 71.5f, 91.3f };
+    // No gantry at z 0: the bridge over the sunken street stands there (step 26).
+    private static readonly float[] GantryZ = { -91.3f, -71.5f, -56f, -40f, -30f, -16f, 16f, 30f, 40f, 56f, 71.5f, 91.3f };
 
     [MenuItem("Deadlock/Setup/30 Lane Night + Zipline Route")]
     public static void BuildLaneFromMenu()
@@ -1064,8 +1065,9 @@ public static class DeadlockAtmosphere
     /// <summary>Rope height at <paramref name="z"/>: hangs from each gantry and sags a little in between.</summary>
     private static float RouteY(float z)
     {
-        // Through the plaza it dips under the banners that cross the avenue at ~9.5 m (z = +-11).
-        float dip = 1.5f * Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(21f, 15f, Mathf.Abs(z)));
+        // Through the plaza it dips under the banners that cross the avenue at ~9.5 m (z = +-11) and
+        // under the arch of the high bridge (step 26, deck at 8 m): about 5.5 m at the centre.
+        float dip = 3.5f * Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(28f, 14f, Mathf.Abs(z)));
         for (int i = 0; i < GantryZ.Length - 1; i++)
         {
             float g0 = GantryZ[i], g1 = GantryZ[i + 1];
@@ -1204,6 +1206,7 @@ public static class DeadlockAtmosphere
             {
                 float x = (i % 2 == 0 ? -1f : 1f) * half * (GantryPostX + 0.15f);
                 Vector3 p = FreeSpot(new Vector3(x, 0f, lampZ[i] * half * SZ));
+                p.y = DeadlockExpandedMap.GroundHeight(p.x, p.z);
                 if (StreetLamp(lamps, glow, iron, lampGlass, halo, pool, lights, p, true)) lampCount++;
             }
             foreach (Vector2 b in new[] { new Vector2(21f, -75f), new Vector2(-21f, -75f), new Vector2(21f, -88f), new Vector2(-21f, -88f) })
@@ -1215,7 +1218,8 @@ public static class DeadlockAtmosphere
         }
         foreach (int s in new[] { -1, 1 })
         {
-            StreetLamp(lamps, glow, iron, lampGlass, halo, pool, lights, FreeSpot(W(s * 15.5f, 0f, -s * 1.5f)), true);
+            // Beside (not on) the ramps up to the bridge, which run along z = 0 in the plaza.
+            StreetLamp(lamps, glow, iron, lampGlass, halo, pool, lights, FreeSpot(W(s * 15.5f, 0f, -s * 3.6f)), true);
             lampCount++;
         }
 
@@ -1257,12 +1261,17 @@ public static class DeadlockAtmosphere
             {
                 float px = (float)(rng.NextDouble() * 13.0 - 6.5) * SX;
                 float pz = half * (float)(14.0 + rng.NextDouble() * 54.0) * SZ;
+                // Flat puddles only on flat street (a sloped ramp would cut them in half).
+                if (Mathf.Abs(DeadlockExpandedMap.GroundHeight(px, pz)) > 0.001f) continue;
                 street.Mesh(puddle, BuiltinMesh("Cylinder"), Matrix4x4.TRS(new Vector3(px, 0.018f, pz),
                     Quaternion.Euler(0f, (float)rng.NextDouble() * 180f, 0f), new Vector3(1.2f + (float)rng.NextDouble() * 2.2f, 0.001f, 0.6f + (float)rng.NextDouble() * 1.1f)));
             }
             foreach (Vector2 m in new[] { new Vector2(2.2f, -60f), new Vector2(-2.8f, -33f), new Vector2(1.6f, -8f) })
             {
                 Vector3 p = W(m.x * half, 0f, m.y * half);
+                // The sunken street under the bridge has its own drain grates (step 26); its thin disc
+                // also left a black blob on the arch above it.
+                if (Mathf.Abs(DeadlockExpandedMap.GroundHeight(p.x, p.z)) > 0.001f) continue;
                 street.Cylinder(manhole, p + Vector3.up * 0.02f, 0.45f, 0.02f);
                 ParticleSystem ps = DeadlockSceneKit.Particles("ManholeSteam", fx, p + Vector3.up * 0.15f, steam, new Color(1f, 1f, 1f, 0.55f),
                     true, 4f, 0, 5f, 0.5f, 1.6f, new Vector3(0.5f, 0.05f, 0.5f), false, -0.03f);
@@ -1400,14 +1409,16 @@ public static class DeadlockAtmosphere
         foreach (int s in new[] { -1, 1 })
         {
             float x = s * postX;
-            b.Box(concrete, new Vector3(x, 0.2f, z), new Vector3(0.9f, 0.4f, 0.9f), Quaternion.identity);
+            // Posts stand on the street wherever it is: on the ramps down into the sunken middle too.
+            float g = DeadlockExpandedMap.GroundHeight(x, z);
+            b.Box(concrete, new Vector3(x, g + 0.2f, z), new Vector3(0.9f, 0.4f, 0.9f), Quaternion.identity);
             foreach (float dz in new[] { -0.25f, 0.25f })
             {
-                b.Box(steel, new Vector3(x, top * 0.5f, z + dz), new Vector3(0.12f, top, 0.12f), Quaternion.identity);
+                b.Box(steel, new Vector3(x, (g + top) * 0.5f, z + dz), new Vector3(0.12f, top - g, 0.12f), Quaternion.identity);
             }
-            for (float y = 0.4f; y < top - 0.8f; y += 0.8f)
+            for (float y = g + 0.4f; y < top - 0.8f; y += 0.8f)
             {
-                float angle = Mathf.Atan2(0.5f, 0.8f) * Mathf.Rad2Deg * ((int)(y / 0.8f) % 2 == 0 ? 1f : -1f);
+                float angle = Mathf.Atan2(0.5f, 0.8f) * Mathf.Rad2Deg * ((int)((y - g) / 0.8f) % 2 == 0 ? 1f : -1f);
                 b.Box(steel, new Vector3(x, y + 0.4f, z), new Vector3(0.05f, 0.94f, 0.05f), Quaternion.Euler(angle, 0f, 0f));
                 b.Box(steel, new Vector3(x, y, z), new Vector3(0.06f, 0.05f, 0.5f), Quaternion.identity);
             }

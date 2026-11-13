@@ -38,3 +38,10 @@ MonoBehaviour:
   introLines:
   - Hathorne's bloodline will pay for his sins.
   - All you need to do is summon the Archmother.
+  render: {fileID: 2800000, guid: d2563349287318b4eb16251639f93380, type: 3}
+  selectBackground: {fileID: 2800000, guid: f2913fc74de7c0e4ba4dd69099f17dd1, type: 3}
+  nameLogo: {fileID: 2800000, guid: 64f328465ecc70c46925ee1943fca625, type: 3}
+  selectCover: {fileID: 2800000, guid: eb3c1e02d4f79514c81fabe617c8af59, type: 3}
+  hudNormal: {fileID: 2800000, guid: 3796e344e5f35864f836d544169daa6a, type: 3}
+  hudCritical: {fileID: 2800000, guid: a8767006541679c4bb00bd71e43c9465, type: 3}
+  hudStreak: {fileID: 2800000, guid: 1c913bfae26df3742bc875e84fbf568b, type: 3}

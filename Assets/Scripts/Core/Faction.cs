@@ -35,6 +35,16 @@ public static class FactionUtility
         return attacker != target;
     }
 
+    /// <summary>
+    /// True for neutral things that are not creatures: souls and the shop's cards, which a shot can
+    /// reach but an ability should not strike. A neutral <see cref="Health"/> is a creature (the
+    /// camps beside the lane) and abilities do hurt it.
+    /// </summary>
+    public static bool IsProp(IDamageable target)
+    {
+        return target.Faction == Faction.Neutral && !(target is Health);
+    }
+
     /// <summary>The side opposing <paramref name="faction"/>; neutral has no opposite.</summary>
     public static Faction Opposite(Faction faction)
     {

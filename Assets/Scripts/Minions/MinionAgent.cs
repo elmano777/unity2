@@ -297,6 +297,9 @@ public class MinionAgent : MonoBehaviour
     // 0 = the hero that has been hitting our hero, 1 = enemy minions, 2 = a hero, 3 = a structure.
 
     private const float AggroSeconds = 4f;
+
+    /// <summary>Highest step a minion takes in one move, in metres. Ramps rise far less than this per frame.</summary>
+    private const float MaxStep = 1f;
     private static readonly Dictionary<Faction, float> HeroAggroAt = new Dictionary<Faction, float>();
     private static int listeners;
     private int currentCategory = 99;
@@ -399,7 +402,8 @@ public class MinionAgent : MonoBehaviour
     private void Update()
     {
         // The rival's machine only watches: the host decides where every minion goes and who it hits.
-        if (CurrentState == State.Dead || definition == null || health.IsReplica)
+        // After the patron falls the minions stand where they are.
+        if (CurrentState == State.Dead || definition == null || health.IsReplica || MatchManager.IsOver)
         {
             return;
         }
@@ -829,14 +833,18 @@ public class MinionAgent : MonoBehaviour
             }
         }
 
-        // Snap to the ground so a sloped or stepped lane doesn't leave minions floating.
-        if (Physics.Raycast(next + Vector3.up * 2f, Vector3.down, out RaycastHit hit, 6f, groundMask, QueryTriggerInteraction.Ignore))
+        // Snap to the ground so a sloped or stepped lane doesn't leave minions floating. No floor
+        // within a step of the feet means a wall or a drop (the sunken street under the plaza, a
+        // bridge deck overhead): the minion stays where it is and only turns, it has no way round.
+        if (Physics.Raycast(next + Vector3.up * 2f, Vector3.down, out RaycastHit hit, 6f, groundMask, QueryTriggerInteraction.Ignore)
+            && Mathf.Abs(hit.point.y - transform.position.y) <= MaxStep)
         {
             next.y = hit.point.y;
         }
         else
         {
-            next.y = transform.position.y;
+            FaceToward(destination);
+            return;
         }
 
         // Advance the gait by distance, not time, so a slowed minion takes slower steps.

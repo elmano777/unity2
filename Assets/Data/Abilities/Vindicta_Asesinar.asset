@@ -13,9 +13,7 @@ MonoBehaviour:
   m_Name: Vindicta_Asesinar
   m_EditorClassIdentifier: 
   abilityName: Asesinar
-  description: "Mant\xE9n el bot\xF3n para apuntar con la mira y su\xE9ltalo para
-    disparar: atraviesa enemigos, cargado hace el doble y remata a los que tienen
-    menos de media vida. Dos cargas."
+  description: Un disparo de francotiradora que atraviesa el carril.
   icon: {fileID: 21300000, guid: fbfe8d1c605e72c4c8c6e8fbec99f53d, type: 3}
   castClip: {fileID: 8300000, guid: d8bf536ca267f454aa92d9edcca1d945, type: 3}
   impactClip: {fileID: 8300000, guid: 11a8f94743b5ddf40968920c7c9f38fe, type: 3}
@@ -23,12 +21,12 @@ MonoBehaviour:
   endClip: {fileID: 0}
   loopSeconds: 2.5
   effectPrefab: {fileID: 0}
-  tint: {r: 0.72, g: 0.42, b: 1, a: 1}
-  cooldown: 30
+  tint: {r: 1, g: 0.25, b: 0.3, a: 1}
+  cooldown: 16
   duration: 0
   travelTime: 0
   shape: 3
-  damage: 120
+  damage: 150
   radius: 0
   castRange: 70
   travelSpeed: 6

@@ -73,6 +73,17 @@ public class MatchmakingStatusView : MonoBehaviour
 
     private void Update()
     {
+        // Once the ritual is over the summary panel speaks; a late "the rival left" mustn't cover it.
+        if (MatchManager.IsOver)
+        {
+            if (label.gameObject.activeSelf)
+            {
+                label.gameObject.SetActive(false);
+            }
+
+            return;
+        }
+
         if (Time.time >= hideAt)
         {
             label.gameObject.SetActive(false);

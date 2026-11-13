@@ -356,7 +356,7 @@ public class ExperienceDirector : MonoBehaviour
             ExperienceCues.Play(ExperienceCues.Victory, 0.5f);
             StartCoroutine(Celebrate());
         }
-        else if (state == MatchState.Lose || state == MatchState.TimeUp)
+        else if (state == MatchState.Lose)
         {
             matchOver = true;
             ExperienceCues.Play(ExperienceCues.Defeat, 0.5f);

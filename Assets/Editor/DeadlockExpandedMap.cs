@@ -35,7 +35,7 @@ using Random = System.Random;
 /// halo on the wall behind (<c>Deadlock/Glow</c>): the Lane has no bloom, which costs too much on the
 /// Quest, so the halo stands in for it. District names at their entrances double as wayfinding (RNF-05).</para>
 /// </remarks>
-public static class DeadlockExpandedMap
+public static partial class DeadlockExpandedMap
 {
     private const string ScenePath = "Assets/Scenes/Lane.unity";
     private const string MeshDir = "Assets/Art/Meshes/Map";
@@ -207,12 +207,15 @@ public static class DeadlockExpandedMap
         groundLayer = LayerMask.NameToLayer(DeadlockSetupTools.GroundLayer);
         meshes.Clear();
         colliders.Clear();
+        orientedColliders.Clear();
         unshadowed.Clear();
 
         if (!CreateMaterials())
         {
             return;
         }
+
+        CreateDetailMaterials();
 
         foreach (string name in new[] { "Environment", "Cover", "Map" })
         {
@@ -241,12 +244,15 @@ public static class DeadlockExpandedMap
                 BuildLaneBlocks(frame, random);
                 BuildEdge(frame, random);
                 BuildDistrict(frame);
+                BuildCampDen($"{frame.HalfName}_{frame.District}", frame);
             }
         }
 
         BuildPlaza();
+        BuildPit();
         meshes.Remove(DiscardChunk);
         colliders.Remove(DiscardChunk);
+        orientedColliders.Remove(DiscardChunk);
         FlushMeshes(root);
         SetStatic(root);
 
@@ -685,10 +691,12 @@ public static class DeadlockExpandedMap
     {
         string chunk = $"{f.HalfName}_Lane";
 
-        float length = PlazaEdgeZ - BaseFrontZ;
-        Quad(chunk, asphalt, f.P(0f, FloorY, (BaseFrontZ + PlazaEdgeZ) / 2f), Vector3.up, LaneHalfWidth * 2f * ScaleX, length * ScaleZ, PavingTile);
+        // The lane ends where the ramp down into the sunken street begins (BuildPit paves the rest).
+        float laneEnd = -PitRampEnd / ScaleZ;
+        float length = laneEnd - BaseFrontZ;
+        Quad(chunk, asphalt, f.P(0f, FloorY, (BaseFrontZ + laneEnd) / 2f), Vector3.up, LaneHalfWidth * 2f * ScaleX, length * ScaleZ, PavingTile);
 
-        for (float z = BaseFrontZ + 2f; z < PlazaEdgeZ - 2f; z += 6f)
+        for (float z = BaseFrontZ + 2f; z + 3f < laneEnd; z += 6f)
         {
             Quad(chunk, neonBlue, f.P(0f, MarkingY, z + 1.5f), Vector3.up, 0.2f, 3f);
         }
@@ -699,7 +707,9 @@ public static class DeadlockExpandedMap
 
         foreach (Vector3 c in cover)
         {
-            Box(chunk, f, sandstoneDark, c + Vector3.up * 0.9f, new Vector3(2.2f, 1.8f, 1.2f), SandstoneTile, true);
+            // The two nearest the middle stand on the ramp and in the sunken street.
+            Vector3 w = f.P(c);
+            Box(chunk, f, sandstoneDark, c + Vector3.up * (0.9f + GroundHeight(w.x, w.z)), new Vector3(2.2f, 1.8f, 1.2f), SandstoneTile, true);
         }
 
         // The zipline and its gantries are step 30's (ZiplineRoute), not built here any more.
@@ -759,8 +769,14 @@ public static class DeadlockExpandedMap
 
         Row(chunk, f, AlleyOuterX, MapHalfWidth, BaseFrontZ, CourtyardStart, Faces.MinusX, Faces.None, Faces.PlusZ, 9f, 15f, random);
         Row(chunk, f, CourtyardBackX, MapHalfWidth, CourtyardStart, CourtyardEnd, Faces.MinusX, Faces.None, Faces.None, 8f, 10f, random);
-        Row(chunk, f, AlleyOuterX, MapHalfWidth, CourtyardEnd, 0f, Faces.MinusX, Faces.MinusZ, Faces.None, 10f, 17f, random);
+        // A recess for the district's neutral camp is cut out of this row: a lower building closes its back.
+        Row(chunk, f, AlleyOuterX, MapHalfWidth, CourtyardEnd, 0f, Faces.MinusX, Faces.MinusZ, Faces.None, 10f, 17f, random, CampStart, CampEnd);
+        var back = new Random(4001 + 7 * f.Half + 3 * f.Side);
+        Building(chunk, f, CampBackX, MapHalfWidth, CampStart, CampEnd, 9f, brickDark, Faces.MinusX, back);
     }
+
+    /// <summary>True when template z range <paramref name="z0"/>..<paramref name="z1"/> overlaps the neutral camp's recess.</summary>
+    private static bool InCampRecess(float z0, float z1) => z0 < CampEnd && z1 > CampStart;
 
     /// <summary>One team's base: walls, the court facade behind the Patron, and a tinted floor.</summary>
     private static void BuildBase(Frame f, Random random)
@@ -879,7 +895,9 @@ public static class DeadlockExpandedMap
             var f = new Frame(half, 1);
             for (float x = -6.5f; x <= 6.5f; x += 1.6f)
             {
-                Quad(chunk, white, f.P(x, MarkingY, PlazaEdgeZ - 1.5f), Vector3.up, 0.8f, 2.4f);
+                // On the ramp down into the sunken street: laid on its slope.
+                Vector3 p = f.P(x, 0f, PlazaEdgeZ - 1.5f);
+                FloorPatch(chunk, white, p.x, p.z, 0.8f, 2.4f, MarkingY);
             }
         }
     }
@@ -930,6 +948,7 @@ public static class DeadlockExpandedMap
                 for (float z = -68f; z < -16f; z += 9f)
                 {
                     if (z > CourtyardStart - 2f && z < CourtyardEnd) continue;
+                    if (InCampRecess(z, z + 4f)) continue;
                     Box(chunk, f, lacquer, new Vector3(AlleyOuterX - 0.6f, 3.2f, z + 2f), new Vector3(1.2f, 0.15f, 4f), 0f, false);
                 }
 
@@ -999,6 +1018,9 @@ public static class DeadlockExpandedMap
 
                 for (int p = 0; p < posterZ.Length; p++)
                 {
+                    // No wall to hang it on across the camp's recess.
+                    if (InCampRecess(posterZ[p] - 0.7f, posterZ[p] + 0.7f)) continue;
+
                     Sign(chunk, f.P(AlleyOuterX - 0.06f, 2.2f, posterZ[p]), f.N(Vector3.left), 1.4f, 1.9f, pink, posters[p]);
                     Lamp(chunk, f.P(AlleyOuterX - 0.4f, 3.7f, posterZ[p]), 0.35f, lamp);
                 }
@@ -1398,18 +1420,30 @@ public static class DeadlockExpandedMap
                 if (unshadowed.Contains(entry.Key)) renderer.shadowCastingMode = ShadowCastingMode.Off;
             }
 
-            if (!colliders.TryGetValue(chunk.Key, out List<Bounds> boxes)) continue;
+            colliders.TryGetValue(chunk.Key, out List<Bounds> boxes);
+            orientedColliders.TryGetValue(chunk.Key, out List<OrientedBounds> tilted);
+            if (boxes == null && tilted == null) continue;
 
             Transform colliderRoot = new GameObject("Colliders").transform;
             colliderRoot.SetParent(chunkRoot, false);
 
-            foreach (Bounds b in boxes)
+            foreach (Bounds b in boxes ?? new List<Bounds>())
             {
                 GameObject go = new GameObject("Box");
                 go.layer = groundLayer;
                 go.transform.SetParent(colliderRoot, false);
                 go.transform.position = b.center;
                 go.AddComponent<BoxCollider>().size = b.size;
+            }
+
+            // Ramps, stairs and sloped parapets.
+            foreach (OrientedBounds b in tilted ?? new List<OrientedBounds>())
+            {
+                GameObject go = new GameObject("Slope");
+                go.layer = groundLayer;
+                go.transform.SetParent(colliderRoot, false);
+                go.transform.SetPositionAndRotation(b.Center, b.Rotation);
+                go.AddComponent<BoxCollider>().size = b.Size;
             }
         }
     }
@@ -1440,7 +1474,30 @@ public static class DeadlockExpandedMap
 
         Vector3 size = new Vector3(MapHalfWidth * 2f * ScaleX, 1f, MapHalfLength * 2f * ScaleZ);
         var data = new MeshData();
-        data.Face(new Vector3(0f, 0.5f, 0f), Vector3.up, Vector3.forward, size.x / 2f, size.z / 2f, PavingTile);
+
+        // The street has a hole where the lane sinks under the plaza (BuildPit floors it): a strip
+        // down each side of the cut and one across each end, each with its own collider.
+        float hx = size.x / 2f, hz = size.z / 2f, pw = PitHalfWidth, pz = PitRampEnd;
+        var pieces = new[]
+        {
+            new Rect(-hx, -hz, hx - pw, 2f * hz),
+            new Rect(pw, -hz, hx - pw, 2f * hz),
+            new Rect(-pw, -hz, 2f * pw, hz - pz),
+            new Rect(-pw, pz, 2f * pw, hz - pz),
+        };
+
+        foreach (BoxCollider old in ground.GetComponents<BoxCollider>())
+        {
+            Object.DestroyImmediate(old);
+        }
+
+        foreach (Rect r in pieces)
+        {
+            data.Face(new Vector3(r.center.x, 0.5f, r.center.y), Vector3.up, Vector3.forward, r.width / 2f, r.height / 2f, PavingTile);
+            BoxCollider piece = ground.AddComponent<BoxCollider>();
+            piece.center = new Vector3(r.center.x, 0f, r.center.y);
+            piece.size = new Vector3(r.width, 1f, r.height);
+        }
 
         var mesh = new Mesh { name = "Map_Ground" };
         mesh.SetVertices(data.Vertices);
@@ -1453,9 +1510,6 @@ public static class DeadlockExpandedMap
 
         ground.GetComponent<MeshFilter>().sharedMesh = mesh;
         ground.GetComponent<MeshRenderer>().sharedMaterial = paving;
-        if (!ground.TryGetComponent(out BoxCollider collider)) collider = ground.AddComponent<BoxCollider>();
-        collider.center = Vector3.zero;
-        collider.size = size;
     }
 
     /// <summary>Moves what other steps placed for the old 60 m street onto the new layout.</summary>

@@ -229,6 +229,12 @@ public class Weapon : MonoBehaviour
             HapticFeedback.Pulse(hapticHand, 0.35f, 0.05f);
         }
 
+        // The match is over: the trigger presses the summary's buttons, it doesn't shoot.
+        if (MatchManager.IsOver)
+        {
+            burstLeft = 0;
+        }
+
         // The rest of a burst follows on its own, trigger held or not.
         if (burstLeft > 0 && Time.time >= nextBurstShot)
         {
@@ -261,7 +267,7 @@ public class Weapon : MonoBehaviour
     public bool TryFire()
     {
         // Turned into a storm (Seven's ultimate): no gun until it ends.
-        if (!CanFire || AbilityCaster.LocalChanneling)
+        if (!CanFire || AbilityCaster.LocalChanneling || MatchManager.IsOver)
         {
             return false;
         }

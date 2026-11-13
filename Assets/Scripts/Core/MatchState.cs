@@ -15,7 +15,4 @@ public enum MatchState
 
     /// <summary>The player's own patron fell.</summary>
     Lose = 3,
-
-    /// <summary>The time cap ran out with both patrons standing.</summary>
-    TimeUp = 4,
 }
