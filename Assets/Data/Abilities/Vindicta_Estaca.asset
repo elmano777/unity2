@@ -13,7 +13,8 @@ MonoBehaviour:
   m_Name: Vindicta_Estaca
   m_EditorClassIdentifier: 
   abilityName: Estaca
-  description: Clava una estaca que hiere a los enemigos cercanos.
+  description: "Lanza una estaca: los enemigos cerca de donde cae quedan amarrados
+    a ella, sin poder alejarse, y m\xE1s lentos."
   icon: {fileID: 21300000, guid: 43d9ab7ff27260b498134e4752a3bfd1, type: 3}
   castClip: {fileID: 8300000, guid: d8bf536ca267f454aa92d9edcca1d945, type: 3}
   impactClip: {fileID: 8300000, guid: 11a8f94743b5ddf40968920c7c9f38fe, type: 3}
@@ -21,14 +22,14 @@ MonoBehaviour:
   endClip: {fileID: 0}
   loopSeconds: 2.5
   effectPrefab: {fileID: 0}
-  tint: {r: 0.85, g: 0.4, b: 1, a: 1}
-  cooldown: 10
+  tint: {r: 0.62, g: 0.4, b: 1, a: 1}
+  cooldown: 12
   duration: 0
-  travelTime: 0.25
+  travelTime: 0.35
   shape: 2
-  damage: 55
-  radius: 3
-  castRange: 25
+  damage: 40
+  radius: 4.5
+  castRange: 20
   travelSpeed: 6
   damagePerSecond: 0
   tickInterval: 0.5
@@ -47,3 +48,47 @@ MonoBehaviour:
   chargeGap: 2.5
   pierce: 0
   lowHealthBonus: 0
+  channelArmor: 0
+  upgrades:
+  - summary: "+45 de da\xF1o"
+    charges: 0
+    cooldown: 0
+    damage: 45
+    damagePerSecond: 0
+    radius: 0
+    radiusEnd: 0
+    duration: 0
+    channelSeconds: 0
+    slow: 0
+    slowSeconds: 0
+    tetherSeconds: 0
+    lowHealthBonus: 0
+    channelArmor: 0
+  - summary: "Recarga 6 s m\xE1s r\xE1pido"
+    charges: 0
+    cooldown: -6
+    damage: 0
+    damagePerSecond: 0
+    radius: 0
+    radiusEnd: 0
+    duration: 0
+    channelSeconds: 0
+    slow: 0
+    slowSeconds: 0
+    tetherSeconds: 0
+    lowHealthBonus: 0
+    channelArmor: 0
+  - summary: "Amarra 0.75 s m\xE1s y atrapa 1 m m\xE1s lejos"
+    charges: 0
+    cooldown: 0
+    damage: 0
+    damagePerSecond: 0
+    radius: 1
+    radiusEnd: 0
+    duration: 0
+    channelSeconds: 0
+    slow: 0
+    slowSeconds: 0.75
+    tetherSeconds: 0.75
+    lowHealthBonus: 0
+    channelArmor: 0

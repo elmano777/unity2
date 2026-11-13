@@ -165,6 +165,122 @@ public class AbilitySO : ScriptableObject
     [Min(0f)]
     public float lowHealthBonus;
 
+    [Header("Channel armour")]
+    [Tooltip("Flat damage taken off every hit the caster receives while channelling (the storm's first upgrade). 0 = none.")]
+    [Min(0f)]
+    public float channelArmor;
+
+    [Header("Upgrades (ability points)")]
+    [Tooltip("The three upgrades bought with ability points, in order; each costs UpgradeCosts[i] points.")]
+    public AbilityUpgrade[] upgrades = System.Array.Empty<AbilityUpgrade>();
+
+    /// <summary>Ability points each upgrade costs, in order (the original game's 1, 2 and 5).</summary>
+    public static readonly int[] UpgradeCosts = { 1, 2, 5 };
+
+    /// <summary>How many upgrades this ability has (at most three).</summary>
+    public int UpgradeCount => upgrades != null ? Mathf.Min(upgrades.Length, UpgradeCosts.Length) : 0;
+
+    /// <summary>The asset this runtime copy was made from, or null for an asset.</summary>
+    [System.NonSerialized] public AbilitySO upgradedFrom;
+
+    /// <summary>Upgrades applied to this copy (0 on an asset).</summary>
+    [System.NonSerialized] public int tier;
+
     /// <summary>True when the ability holds or slows what it catches.</summary>
     public bool HasMovementEffect => slow > 0f || tetherSeconds > 0f;
+
+    private static readonly System.Collections.Generic.Dictionary<(AbilitySO, int), AbilitySO> upgradedCopies =
+        new System.Collections.Generic.Dictionary<(AbilitySO, int), AbilitySO>();
+
+    /// <summary>
+    /// The ability with its first <paramref name="tiers"/> upgrades applied: a runtime copy, made once
+    /// and reused, so everything that already reads an AbilitySO (the cast, the effects, the rival's
+    /// replay) sees the upgraded numbers without knowing about upgrades. Tier 0 is the asset itself.
+    /// </summary>
+    public static AbilitySO Upgraded(AbilitySO ability, int tiers)
+    {
+        if (ability == null)
+        {
+            return null;
+        }
+
+        if (ability.upgradedFrom != null)
+        {
+            ability = ability.upgradedFrom;
+        }
+
+        tiers = Mathf.Clamp(tiers, 0, ability.UpgradeCount);
+
+        if (tiers == 0)
+        {
+            return ability;
+        }
+
+        if (upgradedCopies.TryGetValue((ability, tiers), out AbilitySO copy) && copy != null)
+        {
+            return copy;
+        }
+
+        copy = Instantiate(ability);
+        copy.name = ability.name;
+        copy.hideFlags = HideFlags.DontSave;
+        copy.upgradedFrom = ability;
+        copy.tier = tiers;
+
+        for (int i = 0; i < tiers; i++)
+        {
+            ability.upgrades[i]?.ApplyTo(copy);
+        }
+
+        upgradedCopies[(ability, tiers)] = copy;
+        return copy;
+    }
+}
+
+/// <summary>
+/// One step of an ability's upgrade path (what an ability point buys, as in the original game's
+/// T1 / T2 / T3). Every number is added to the ability's own; most are zero.
+/// </summary>
+[System.Serializable]
+public class AbilityUpgrade
+{
+    [Tooltip("What it does, in a few words, for the wrist panel (e.g. \"+1 carga\").")]
+    public string summary;
+
+    public int charges;
+
+    [Tooltip("Seconds added to the cooldown (negative shortens it).")]
+    public float cooldown;
+
+    public float damage;
+    public float damagePerSecond;
+    public float radius;
+    public float radiusEnd;
+
+    [Tooltip("Seconds added to the travelling ball's life.")]
+    public float duration;
+
+    public float channelSeconds;
+    public float slow;
+    public float slowSeconds;
+    public float tetherSeconds;
+    public float lowHealthBonus;
+    public float channelArmor;
+
+    public void ApplyTo(AbilitySO a)
+    {
+        a.charges = Mathf.Max(1, a.charges + charges);
+        a.cooldown = Mathf.Max(1f, a.cooldown + cooldown);
+        a.damage = Mathf.Max(0f, a.damage + damage);
+        a.damagePerSecond = Mathf.Max(0f, a.damagePerSecond + damagePerSecond);
+        a.radius = Mathf.Max(0f, a.radius + radius);
+        a.radiusEnd = Mathf.Max(0f, a.radiusEnd + radiusEnd);
+        a.duration = Mathf.Max(0f, a.duration + duration);
+        a.channelSeconds = Mathf.Max(0.5f, a.channelSeconds + channelSeconds);
+        a.slow = Mathf.Clamp(a.slow + slow, 0f, 0.9f);
+        a.slowSeconds = Mathf.Max(0f, a.slowSeconds + slowSeconds);
+        a.tetherSeconds = Mathf.Max(0f, a.tetherSeconds + tetherSeconds);
+        a.lowHealthBonus = Mathf.Max(0f, a.lowHealthBonus + lowHealthBonus);
+        a.channelArmor = Mathf.Max(0f, a.channelArmor + channelArmor);
+    }
 }

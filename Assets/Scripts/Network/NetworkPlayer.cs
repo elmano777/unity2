@@ -59,6 +59,10 @@ public class NetworkPlayer : NetworkBehaviour
     private readonly NetworkVariable<Quaternion> rightRotation = Owned(Quaternion.identity);
     private readonly NetworkVariable<int> heroIndex = Owned(-1);
 
+    // Level and ability upgrades, packed: bits 0-1 first ability's tier, 2-3 second's, 4+ level.
+    // The rival's screen needs the tiers to replay a cast the size it really is (radius, tether).
+    private readonly NetworkVariable<int> progress = Owned(1 << 4);
+
     private OVRCameraRig rig;
     private GameObject weaponVisual;
     private Transform heroBody;
@@ -75,6 +79,21 @@ public class NetworkPlayer : NetworkBehaviour
     /// <summary>The hero this player picked, once it is known (it arrives a moment after the player spawns).</summary>
     public HeroDefinitionSO Hero =>
         heroes != null && heroIndex.Value >= 0 && heroIndex.Value < heroes.Length ? heroes[heroIndex.Value] : null;
+
+    /// <summary>This player's hero level (1 until the first level up).</summary>
+    public int Level => Mathf.Max(1, progress.Value >> 4);
+
+    /// <summary>Upgrades this player bought for ability <paramref name="index"/> (0..3).</summary>
+    public int AbilityTier(int index) => index < 0 || index > 1 ? 0 : (progress.Value >> (index * 2)) & 3;
+
+    /// <summary>Publishes the local player's level and ability tiers (see <see cref="HeroProgression"/>).</summary>
+    public void PublishProgress(int level, int firstTier, int secondTier)
+    {
+        if (IsSpawned && IsOwner)
+        {
+            progress.Value = (Mathf.Clamp(level, 1, 99) << 4) | (Mathf.Clamp(secondTier, 0, 3) << 2) | Mathf.Clamp(firstTier, 0, 3);
+        }
+    }
 
     /// <summary>Seconds a downed player waits before coming back at their end of the lane.</summary>
     public float RespawnSeconds => respawnSeconds;
@@ -331,8 +350,10 @@ public class NetworkPlayer : NetworkBehaviour
 
         if (abilities != null && index >= 0 && index < abilities.Length)
         {
-            AbilityFx.Play(abilities[index], from, to, radiusScale);
-            ReplayMovementEffects(abilities[index], from, to, radiusScale);
+            // With the caster's upgrades, so a bigger ball or a longer tether looks and holds the same here.
+            AbilitySO ability = AbilitySO.Upgraded(abilities[index], AbilityTier(index));
+            AbilityFx.Play(ability, from, to, radiusScale);
+            ReplayMovementEffects(ability, from, to, radiusScale);
         }
     }
 
@@ -432,8 +453,9 @@ public class NetworkPlayer : NetworkBehaviour
             return;
         }
 
-        // A shop item is never worth more than this; anything bigger is a bad packet.
-        amount = Mathf.Clamp(amount, 0f, 200f);
+        // A shop item is never worth more than this; anything bigger is a bad packet. Armour can also
+        // be taken back off (the storm's armour ends with the storm).
+        amount = (ItemStat)stat == ItemStat.DamageReduction ? Mathf.Clamp(amount, -60f, 60f) : Mathf.Clamp(amount, 0f, 200f);
 
         if ((ItemStat)stat == ItemStat.MaxHealth)
         {

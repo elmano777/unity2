@@ -33,6 +33,9 @@ MonoBehaviour:
   maxHealth: 290
   healthRegen: 1
   moveSpeed: 3.75
+  healthPerLevel: 24
+  bulletDamagePerLevel: 0.7
+  abilityPowerPerLevel: 0.02
   introLines:
   - You escaped Lost Whisper.
   - You killed your tormentors.

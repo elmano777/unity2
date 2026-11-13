@@ -104,7 +104,21 @@ public class WristHud : MonoBehaviour
         text.Clear();
 
         int souls = PlayerWallet.Instance != null ? PlayerWallet.Instance.Souls : 0;
-        text.Append("<color=#7FE0FF>ALMAS</color> ").Append(souls).Append('\n');
+        text.Append("<color=#7FE0FF>ALMAS</color> ").Append(souls);
+
+        HeroProgression progression = HeroProgression.Instance;
+
+        if (progression != null)
+        {
+            text.Append("   <color=#FFD27F>NIVEL ").Append(progression.Level).Append("</color>");
+
+            if (progression.NextLevelSouls > 0)
+            {
+                text.Append(" <size=75%>(").Append(progression.Collected).Append('/').Append(progression.NextLevelSouls).Append(")</size>");
+            }
+        }
+
+        text.Append('\n');
 
         if (caster != null)
         {

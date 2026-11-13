@@ -84,6 +84,15 @@ public class MatchStats
     /// <summary>This player's own towers the rival destroyed (the patron not counted).</summary>
     public int towersLost;
 
+    /// <summary>Hero level reached (souls collected, see HeroProgression).</summary>
+    public int heroLevel = 1;
+
+    /// <summary>Ability points spent on upgrades.</summary>
+    public int abilityPointsSpent;
+
+    /// <summary>Upgrades bought per ability, e.g. "3-1" (first ability maxed, one upgrade on the second).</summary>
+    public string abilityTiers = "0-0";
+
     // ---- Happiness (HEART) ----
 
     /// <summary>The optional vote. <see cref="MatchVote.None"/> means the player skipped it.</summary>

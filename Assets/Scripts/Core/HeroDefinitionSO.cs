@@ -61,6 +61,19 @@ public class HeroDefinitionSO : ScriptableObject
     [Min(0.5f)]
     public float moveSpeed = 3.75f;
 
+    [Header("Levels (each level the souls collected reach, see HeroProgression)")]
+    [Tooltip("Hit points added to the body at each level up.")]
+    [Min(0f)]
+    public float healthPerLevel;
+
+    [Tooltip("Damage added to each bullet at each level up.")]
+    [Min(0f)]
+    public float bulletDamagePerLevel;
+
+    [Tooltip("Ability damage added at each level up, as a fraction (0.03 = +3 %): the original game's spirit power.")]
+    [Min(0f)]
+    public float abilityPowerPerLevel;
+
     [Tooltip("Story lines shown together (one per line) on a black screen after confirming this hero, while entryClip plays.")]
     [TextArea]
     public string[] introLines;

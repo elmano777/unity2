@@ -337,6 +337,44 @@ public class AbilityCaster : MonoBehaviour
         return ability.charges > 1 && chargesLeft[index] > 0 ? Mathf.Max(0.1f, ability.chargeGap) : Mathf.Max(0.1f, ScaledCooldown(ability));
     }
 
+    /// <summary>
+    /// Swaps ability <paramref name="index"/> for its copy with <paramref name="tier"/> upgrades (see
+    /// <see cref="AbilitySO.Upgraded"/>). A new charge is ready at once; a cooldown already running
+    /// keeps running.
+    /// </summary>
+    public void SetTier(int index, int tier)
+    {
+        if (Hero == null || Hero.abilities == null || index < 0 || index >= abilities.Length || index >= Hero.abilities.Length)
+        {
+            return;
+        }
+
+        AbilitySO before = abilities[index];
+        AbilitySO after = AbilitySO.Upgraded(Hero.abilities[index], tier);
+        abilities[index] = after;
+
+        int oldCharges = before != null ? before.charges : 1;
+        int extra = after.charges - oldCharges;
+
+        if (extra <= 0)
+        {
+            return;
+        }
+
+        if (oldCharges <= 1)
+        {
+            // A single-charge ability on cooldown: that charge keeps refilling, the new one is ready.
+            bool cooling = readyAt[index] > Time.time;
+            chargesLeft[index] = cooling ? after.charges - 1 : after.charges;
+            refillAt[index] = cooling ? readyAt[index] : 0f;
+            readyAt[index] = 0f;
+        }
+        else
+        {
+            chargesLeft[index] = Mathf.Min(after.charges, chargesLeft[index] + extra);
+        }
+    }
+
     /// <summary>Makes every ability ready now (editor demo keys).</summary>
     public void ResetCooldowns()
     {
@@ -530,6 +568,14 @@ public class AbilityCaster : MonoBehaviour
         float interval = Mathf.Max(0.1f, ability.tickInterval);
         float nextTick = 0f;
 
+        // The storm's first upgrade: hits are softened while it lasts (taken off again below).
+        float armor = ability.channelArmor;
+
+        if (armor > 0f && PlayerUpgrades.Instance != null)
+        {
+            PlayerUpgrades.Instance.AddTemporaryArmor(armor);
+        }
+
         for (float t = 0f; t < seconds; t += Time.deltaTime)
         {
             if (MatchManager.Instance != null && MatchManager.Instance.State != MatchState.Playing)
@@ -575,6 +621,11 @@ public class AbilityCaster : MonoBehaviour
             Vector3 end = body.position;
             end.y = baseY;
             body.position = end;
+        }
+
+        if (armor > 0f && PlayerUpgrades.Instance != null)
+        {
+            PlayerUpgrades.Instance.AddTemporaryArmor(-armor);
         }
 
         IsChanneling = false;

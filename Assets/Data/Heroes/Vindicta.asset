@@ -35,6 +35,9 @@ MonoBehaviour:
   maxHealth: 300
   healthRegen: 2
   moveSpeed: 4.1
+  healthPerLevel: 17
+  bulletDamagePerLevel: 1.5
+  abilityPowerPerLevel: 0.02
   introLines:
   - Hathorne's bloodline will pay for his sins.
   - All you need to do is summon the Archmother.

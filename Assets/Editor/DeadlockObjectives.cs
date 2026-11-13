@@ -162,7 +162,22 @@ public static class DeadlockObjectives
     private static AbilitySO Ability(string file, string name, string description, AbilityShape shape, float damage,
         float radius, float range, float cooldown, float travel, Color tint, AudioClip cast, AudioClip impact)
     {
-        AbilitySO ability = LoadOrCreateAsset<AbilitySO>($"{AbilityFolder}/{file}.asset");
+        string path = $"{AbilityFolder}/{file}.asset";
+
+        // Once it exists, the ability belongs to step 31 (the wiki numbers, shapes and upgrades): these
+        // placeholders only seed a new asset. Overwriting them here once turned Seven's travelling ball
+        // and storm back into plain bursts.
+        AbilitySO existing = AssetDatabase.LoadAssetAtPath<AbilitySO>(path);
+
+        if (existing != null)
+        {
+            if (existing.castClip == null) existing.castClip = cast;
+            if (existing.impactClip == null) existing.impactClip = impact;
+            EditorUtility.SetDirty(existing);
+            return existing;
+        }
+
+        AbilitySO ability = LoadOrCreateAsset<AbilitySO>(path);
         ability.abilityName = name;
         ability.description = description;
         ability.shape = shape;

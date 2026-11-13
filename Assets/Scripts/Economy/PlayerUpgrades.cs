@@ -66,7 +66,39 @@ public class PlayerUpgrades : MonoBehaviour
         }
 
         Instance = this;
+
+        // Levels and ability points live next to the shop's upgrades, on the player's rig.
+        if (GetComponent<HeroProgression>() == null)
+        {
+            gameObject.AddComponent<HeroProgression>();
+        }
     }
+
+    /// <summary>
+    /// What a level up gives (see <see cref="HeroProgression"/>): hit points, bullet damage and ability
+    /// power, the original game's per-level growth.
+    /// </summary>
+    public void AddLevelBonus(float health, float bulletDamage, float abilityPower)
+    {
+        if (health > 0f)
+        {
+            ApplyToBody(ItemStat.MaxHealth, health);
+        }
+
+        if (bulletDamage > 0f)
+        {
+            foreach (Weapon weapon in GetComponentsInChildren<Weapon>(true))
+            {
+                weapon.AddDamage(bulletDamage);
+            }
+        }
+
+        abilityDamageBonus += abilityPower;
+        Changed?.Invoke();
+    }
+
+    /// <summary>Flat damage reduction for a while (positive to add, the same negative to take it off).</summary>
+    public void AddTemporaryArmor(float amount) => ApplyToBody(ItemStat.DamageReduction, amount);
 
     private void OnEnable()
     {

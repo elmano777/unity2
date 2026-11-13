@@ -13,7 +13,9 @@ MonoBehaviour:
   m_Name: Seven_BolaRelampago
   m_EditorClassIdentifier: 
   abilityName: "Bola rel\xE1mpago"
-  description: "Lanza una bola el\xE9ctrica que estalla donde apuntas."
+  description: "Una bola el\xE9ctrica que avanza en l\xEDnea recta: electrocuta lo
+    que toca, se frena mientras da\xF1a enemigos y se queda donde choca con el piso
+    o una pared."
   icon: {fileID: 21300000, guid: e770ab4e925a77346ad5e4671d09a6a4, type: 3}
   castClip: {fileID: 8300000, guid: d8bf536ca267f454aa92d9edcca1d945, type: 3}
   impactClip: {fileID: 8300000, guid: 11a8f94743b5ddf40968920c7c9f38fe, type: 3}
@@ -21,13 +23,13 @@ MonoBehaviour:
   endClip: {fileID: 0}
   loopSeconds: 2.5
   effectPrefab: {fileID: 0}
-  tint: {r: 0.5, g: 0.85, b: 1, a: 1}
-  cooldown: 8
+  tint: {r: 1, g: 0.85, b: 0.2, a: 1}
+  cooldown: 10
   duration: 4.5
   travelTime: 0.35
-  shape: 2
-  damage: 70
-  radius: 3.5
+  shape: 4
+  damage: 0
+  radius: 3.2
   castRange: 30
   travelSpeed: 7
   damagePerSecond: 28
@@ -47,3 +49,47 @@ MonoBehaviour:
   chargeGap: 2.5
   pierce: 0
   lowHealthBonus: 0
+  channelArmor: 0
+  upgrades:
+  - summary: '+1 carga: dos bolas seguidas'
+    charges: 1
+    cooldown: 0
+    damage: 0
+    damagePerSecond: 0
+    radius: 0
+    radiusEnd: 0
+    duration: 0
+    channelSeconds: 0
+    slow: 0
+    slowSeconds: 0
+    tetherSeconds: 0
+    lowHealthBonus: 0
+    channelArmor: 0
+  - summary: "Frena un 28 % m\xE1s y dura +1 s"
+    charges: 0
+    cooldown: 0
+    damage: 0
+    damagePerSecond: 0
+    radius: 0
+    radiusEnd: 0
+    duration: 1
+    channelSeconds: 0
+    slow: 0.28
+    slowSeconds: 0
+    tetherSeconds: 0
+    lowHealthBonus: 0
+    channelArmor: 0
+  - summary: "+22 de da\xF1o por segundo y +1.3 m de radio"
+    charges: 0
+    cooldown: 0
+    damage: 0
+    damagePerSecond: 22
+    radius: 1.3
+    radiusEnd: 0
+    duration: 0
+    channelSeconds: 0
+    slow: 0
+    slowSeconds: 0
+    tetherSeconds: 0
+    lowHealthBonus: 0
+    channelArmor: 0
