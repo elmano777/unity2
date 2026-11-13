@@ -557,6 +557,7 @@ GameObject:
   - component: {fileID: 8498806409560409529}
   - component: {fileID: 2456554476352281750}
   - component: {fileID: 8559643440000934434}
+  - component: {fileID: 4434603516679614340}
   m_Layer: 10
   m_Name: Guardian_Tower
   m_TagString: Untagged
@@ -744,6 +745,34 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ec9abf5d0b59bb14a93a008a5e98beb4, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+--- !u!114 &4434603516679614340
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8933534553807830154}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c0da789d8b1d93a459cab7ecf59ec0f0, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  style: 0
+  origin: {fileID: 4651150337611183464}
+  particleMaterial: {fileID: 2100000, guid: 9ec2e48e1d6033e4e8cad72bd38ad580, type: 2}
+  beamMaterial: {fileID: 2100000, guid: e134750d5b93f0d43bfe39023859cfb6, type: 2}
+  amberColor: {r: 1, g: 0.55, b: 0.12, a: 1}
+  sapphireColor: {r: 0.25, g: 0.7, b: 1, a: 1}
+  eyeSize: 0.45
+  thickness: 0.75
+  flameSeconds: 0.75
+  flameSpeed: 26
+  flameRate: 150
+  boltCount: 4
+  boltGap: 0.08
+  boltSpeed: 48
+  beamSeconds: 0.55
+  flashLight: 1
 --- !u!1001 &3677945783354249099
 PrefabInstance:
   m_ObjectHideFlags: 0

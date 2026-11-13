@@ -71,6 +71,10 @@ public static class DeadlockObjectives
         AppendToPrefabList(walker, shrine, patron, baseGuardian, baseGuardianSapphire);
         BuildScene(walker, shrine, patron, baseGuardian, baseGuardianSapphire, seven, items);
 
+        // Step 34: the prefabs above are rebuilt from scratch, so put their attack looks (and the
+        // base guardians' eyes and facing) back on.
+        DeadlockStructureAttacks.Run();
+
         AssetDatabase.SaveAssets();
         Debug.Log("[Deadlock Objectives] Objective sequence, abilities, shop and wrist HUD set up in the Lane.");
     }

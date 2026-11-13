@@ -1,5 +1,36 @@
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
+--- !u!1 &760148843715710233
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 4299301998614841990}
+  m_Layer: 0
+  m_Name: Eye
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &4299301998614841990
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 760148843715710233}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 6.8, z: 3.3}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 241444715955495017}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1881572743602567153
 GameObject:
   m_ObjectHideFlags: 0
@@ -588,6 +619,7 @@ GameObject:
   - component: {fileID: 8071897087268358039}
   - component: {fileID: 6667415298343564002}
   - component: {fileID: 3604238748808275299}
+  - component: {fileID: 1591022272111549733}
   m_Layer: 10
   m_Name: Walker_Objective
   m_TagString: Untagged
@@ -613,6 +645,7 @@ Transform:
   - {fileID: 5220327511827142232}
   - {fileID: 8595514471195244357}
   - {fileID: 462591987669528325}
+  - {fileID: 4299301998614841990}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!65 &2618431087436989261
@@ -666,7 +699,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d5a57f767e5e46a458fc5d3c628d0cbb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  GlobalObjectIdHash: 3267769942
+  GlobalObjectIdHash: 4260115469
   InScenePlacedSourceGlobalObjectIdHash: 0
   AlwaysReplicateAsRoot: 0
   SynchronizeTransform: 1
@@ -724,7 +757,7 @@ MonoBehaviour:
   attackClip: {fileID: 0}
   beam: {fileID: 2770166518649409244}
   beamDuration: 0.12
-  beamOrigin: {fileID: 4377675282359404511}
+  beamOrigin: {fileID: 4299301998614841990}
   amberBeam: {r: 1, g: 0.6, b: 0.18, a: 1}
   sapphireBeam: {r: 0.3, g: 0.72, b: 1, a: 1}
 --- !u!82 &8071897087268358039
@@ -847,3 +880,31 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ec9abf5d0b59bb14a93a008a5e98beb4, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+--- !u!114 &1591022272111549733
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8492059418250406638}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c0da789d8b1d93a459cab7ecf59ec0f0, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  style: 1
+  origin: {fileID: 4299301998614841990}
+  particleMaterial: {fileID: 2100000, guid: 9ec2e48e1d6033e4e8cad72bd38ad580, type: 2}
+  beamMaterial: {fileID: 2100000, guid: e134750d5b93f0d43bfe39023859cfb6, type: 2}
+  amberColor: {r: 1, g: 0.55, b: 0.12, a: 1}
+  sapphireColor: {r: 0.25, g: 0.7, b: 1, a: 1}
+  eyeSize: 1.2
+  thickness: 1.1
+  flameSeconds: 0.75
+  flameSpeed: 26
+  flameRate: 150
+  boltCount: 4
+  boltGap: 0.08
+  boltSpeed: 48
+  beamSeconds: 0.55
+  flashLight: 1

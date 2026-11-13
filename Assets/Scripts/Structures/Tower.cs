@@ -59,6 +59,12 @@ public class Tower : Structure
     /// <summary>Radius the tower can shoot within.</summary>
     public float AttackRange => attackRange;
 
+    /// <summary>Seconds between shots.</summary>
+    public float AttackInterval => attackInterval;
+
+    // A StructureAttackFx draws the attack itself (flame, bolts, eye beam) instead of the plain beam.
+    private bool customFx;
+
     /// <summary>True while the tower has something to point at, before and between shots.</summary>
     public bool HasAimPoint { get; private set; }
 
@@ -92,6 +98,8 @@ public class Tower : Structure
         {
             beam.enabled = false;
         }
+
+        customFx = GetComponent<StructureAttackFx>() != null;
     }
 
     private void Update()
@@ -265,7 +273,7 @@ public class Tower : Structure
             audioSource.PlayOneShot(attackClip);
         }
 
-        if (beam != null)
+        if (beam != null && !customFx)
         {
             Color tint = Faction == Faction.Player ? amberBeam : sapphireBeam;
             beam.startColor = tint;

@@ -20,7 +20,7 @@ using Random = System.Random;
 /// under "MapDetail", merged by material, static, with no colliders of its own (the map's stay), so
 /// running it again just rebuilds the dressing. It must run after step 26.
 /// </summary>
-public static class DeadlockDetailPass
+public static partial class DeadlockDetailPass
 {
     private const string ScenePath = "Assets/Scenes/Lane.unity";
     private const string MeshDir = "Assets/Art/Meshes/Detail";
