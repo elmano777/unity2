@@ -142,10 +142,17 @@ public class Structure : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Every structure's health is multiplied by this (towers, Walker, shrines, base guardians and
+    /// the patron): 0.6 = 40 % less, so a ritual is shorter. Lives in code so re-running the setup
+    /// steps (which rewrite each prefab's <see cref="baseHealth"/>) never undoes it.
+    /// </summary>
+    public const float HealthScale = 0.6f;
+
     /// <summary>Health for this structure's tier, compounding <see cref="healthPerTier"/>.</summary>
     protected float ScaledHealth()
     {
-        return baseHealth * Mathf.Pow(healthPerTier, Mathf.Max(0, tier - 1));
+        return baseHealth * Mathf.Pow(healthPerTier, Mathf.Max(0, tier - 1)) * HealthScale;
     }
 
     /// <summary>

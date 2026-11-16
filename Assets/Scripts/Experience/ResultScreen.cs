@@ -16,19 +16,20 @@ using UnityEngine.SceneManagement;
 /// <item>the scoreboard: one band per side, each hero's row with souls, kills, deaths, minions, towers
 /// and the rest, the like / dislike vote and the ways out.</item>
 /// </list>
-/// The pages live in the world in front of the player (not glued to the head) so they can be read
-/// calmly and pressed with the laser. It builds itself in the Lane when the match ends.
+/// The pages are a full screen: the match behind them is hidden (renderers, HUD and sky) and they
+/// fill the view, gliding back in front when the head turns away, so they read like a flat 2D
+/// screen and are pressed with the laser. It builds itself in the Lane when the match ends.
+/// Every way out ("Jugar otra vez" too) goes back to the garage with the network shut down.
 /// </summary>
 /// <remarks>
 /// The rival's row only holds what this machine saw happen (their kills are this player's deaths, the
 /// towers they took are this player's losses); the rest shows "—". Fallback controls so it is never a
-/// dead end: A / X plays again, B / Y leaves; in the editor 1 / 2 vote, ← / → change page and
-/// Enter / Escape play again / leave.
+/// dead end: A / X plays again, B / Y leaves (both to the garage); in the editor 1 / 2 vote,
+/// ← / → change page and Enter / Escape play again / leave.
 /// </remarks>
 public class ResultScreen : MonoBehaviour
 {
     private const string LaneScene = "Lane";
-    private const string SelectScene = "HeroSelect";
     private const string TitleScene = "TitleScreen";
 
     private static readonly Color AmberColor = new Color(1f, 0.7f, 0.2f, 1f);
@@ -44,6 +45,20 @@ public class ResultScreen : MonoBehaviour
 
     private const float PanelDistance = 2.1f;
     private const float PanelWidth = 3.4f, PanelHeight = 1.95f;
+
+    /// <summary>
+    /// Size of the pages at <see cref="PanelDistance"/>: 1.2 makes them ~4.1 m wide, about 88° of
+    /// view, so they fill the headset like a flat screen instead of floating as a small window.
+    /// </summary>
+    private const float FullScreenScale = 1.2f;
+
+    /// <summary>The panel re-centres on the gaze once the head turns further than this (degrees).</summary>
+    private const float FollowAngle = 30f;
+
+    /// <summary>Built-in "UI" layer: the pages live there and the laser only hits that layer.</summary>
+    private const int UiLayer = 5;
+
+    private bool recentering;
 
     /// <summary>Render queue for the pages: past every transparent in the world (3000-3499).</summary>
     private const int OverlayQueue = 3500;
@@ -133,6 +148,8 @@ public class ResultScreen : MonoBehaviour
         {
             return;
         }
+
+        FollowGaze();
 
         if (like.WasPressedThisFrame()) Vote(MatchVote.Like);
         if (dislike.WasPressedThisFrame()) Vote(MatchVote.Dislike);
@@ -245,16 +262,15 @@ public class ResultScreen : MonoBehaviour
 
         Vector3 flat = Vector3.ProjectOnPlane(cam.transform.forward, Vector3.up).normalized;
 
-        // A wall or a spawn-room window right in front would hide the panel: bring it closer (and
-        // smaller, so it covers the same part of the view) instead of putting it behind the glass.
-        float distance = ClearDistance(cam, flat);
-        Vector3 position = cam.transform.position + flat * distance + Vector3.up * -0.05f;
-
+        // The summary is a full screen, not a window over the match: the world is hidden (see
+        // HideWorld), so walls can't get in front and the panel always sits at full size, big
+        // enough to fill the view, over a backdrop of the same ink as the page.
         root = new GameObject("ResultScreen");
-        root.transform.SetPositionAndRotation(position, Quaternion.LookRotation(flat, Vector3.up));
-        panelScale = distance / PanelDistance;
+        root.transform.SetPositionAndRotation(PanelPosition(cam, flat), Quaternion.LookRotation(flat, Vector3.up));
+        panelScale = FullScreenScale;
         root.transform.localScale = Vector3.one * panelScale;
 
+        HideWorld(cam);
         EnsureRaycaster(cam);
 
         Entry mine = LocalEntry(stats);
@@ -281,6 +297,14 @@ public class ResultScreen : MonoBehaviour
             dot.transform.localRotation = Quaternion.Euler(0f, 0f, 45f);
             dots.Add(dot.GetComponent<Renderer>());
         }
+
+        // A backdrop far wider than the view, behind the pages, in the page's own ink: with the
+        // world hidden the whole view reads as one flat screen.
+        target = root.transform;
+        Quad("Surround", new Vector3(0f, 0f, 0.05f), new Vector3(60f, 40f, 1f), Ink, null, OverlayQueue - 1);
+
+        // Buttons (and everything else on the pages) on the UI layer: the laser only looks there.
+        SetLayer(root.transform, UiLayer);
 
         ShowPage(0);
 
@@ -506,7 +530,7 @@ public class ResultScreen : MonoBehaviour
 
         Button("<  MVP", new Vector3(left + 0.4f, bottom + 0.1f, -0.012f), new Vector2(0.5f, 0.15f), new Color(0.1f, 0.11f, 0.15f, 1f), () => ShowPage(0), Muted);
         Button("JUGAR OTRA VEZ  (A)", new Vector3(0f, bottom + 0.1f, -0.012f), new Vector2(0.95f, 0.15f), new Color(0.1f, 0.11f, 0.15f, 1f), PlayAgain, TeamColor(winner));
-        Button("SALIR  (B)", new Vector3(right - 0.4f, bottom + 0.1f, -0.012f), new Vector2(0.5f, 0.15f), new Color(0.1f, 0.11f, 0.15f, 1f), Leave, Muted);
+        Button("GARAGE  (B)", new Vector3(right - 0.4f, bottom + 0.1f, -0.012f), new Vector2(0.5f, 0.15f), new Color(0.1f, 0.11f, 0.15f, 1f), Leave, Muted);
     }
 
     /// <summary>One side's band: its patron's name (and "Victorioso"), the column titles and the hero's row.</summary>
@@ -627,7 +651,9 @@ public class ResultScreen : MonoBehaviour
             MatchManager.Instance.RegisterPlayAgain();
         }
 
-        StartCoroutine(Go(SelectScene));
+        // Back to the garage too (still counted as "play again" for Retention): a new ritual starts
+        // from the garage's orb, with every match object of this one gone.
+        StartCoroutine(Go(TitleScene));
     }
 
     private void Leave()
@@ -648,7 +674,9 @@ public class ResultScreen : MonoBehaviour
             yield return fader.FadeOut();
         }
 
-        // Same clean-up as BackToGarage: the next match needs a fresh NetworkManager.
+        // Same clean-up as BackToGarage: the next match needs a fresh NetworkManager. Let the
+        // shutdown finish (it runs over the next frames) before the manager and the Lane's network
+        // objects are destroyed, so nothing is despawned by a half-closed session.
         NetworkManager network = NetworkManager.Singleton;
 
         if (network != null)
@@ -658,7 +686,17 @@ public class ResultScreen : MonoBehaviour
                 network.Shutdown();
             }
 
-            Destroy(network.gameObject);
+            for (float t = 0f; t < 1.5f && network != null && network.ShutdownInProgress; t += Time.unscaledDeltaTime)
+            {
+                yield return null;
+            }
+
+            if (network != null)
+            {
+                Destroy(network.gameObject);
+            }
+
+            yield return null;
         }
 
         SceneManager.LoadScene(scene);
@@ -671,9 +709,142 @@ public class ResultScreen : MonoBehaviour
         OVRCameraRig rig = FindObjectOfType<OVRCameraRig>();
         GameObject host = rig != null ? rig.gameObject : cam.gameObject;
 
-        if (host.GetComponent<UnityEngine.EventSystems.OVRPhysicsRaycaster>() == null)
+        var raycaster = host.GetComponent<UnityEngine.EventSystems.OVRPhysicsRaycaster>();
+
+        if (raycaster == null)
         {
-            host.AddComponent<UnityEngine.EventSystems.OVRPhysicsRaycaster>();
+            raycaster = host.AddComponent<UnityEngine.EventSystems.OVRPhysicsRaycaster>();
+        }
+
+        // Only the pages: the hidden world's colliders are still there and must not eat the clicks.
+        raycaster.eventMask = 1 << UiLayer;
+    }
+
+    private static void SetLayer(Transform t, int layer)
+    {
+        t.gameObject.layer = layer;
+
+        foreach (Transform child in t)
+        {
+            SetLayer(child, layer);
+        }
+    }
+
+    // ------------------------------------------------------------------ full screen
+
+    private Camera hiddenFor;
+    private CameraClearFlags savedClear;
+    private Color savedBackground;
+    private bool savedFog;
+    private readonly List<Renderer> hiddenRenderers = new List<Renderer>();
+    private readonly List<Canvas> hiddenCanvases = new List<Canvas>();
+
+    /// <summary>Where the panel goes for a head at <paramref name="cam"/> looking along <paramref name="flat"/>.</summary>
+    private static Vector3 PanelPosition(Camera cam, Vector3 flat)
+    {
+        return cam.transform.position + flat * PanelDistance + Vector3.up * -0.05f;
+    }
+
+    /// <summary>
+    /// Turns the match off behind the summary: every renderer and canvas outside the pages (map,
+    /// towers, minions, the weapon, the HUD) is hidden and the sky becomes the page's ink, so the
+    /// view holds only the summary and the laser to press it with.
+    /// </summary>
+    private void HideWorld(Camera cam)
+    {
+        hiddenFor = cam;
+        savedClear = cam.clearFlags;
+        savedBackground = cam.backgroundColor;
+        savedFog = RenderSettings.fog;
+
+        cam.clearFlags = CameraClearFlags.SolidColor;
+        cam.backgroundColor = new Color(Ink.r, Ink.g, Ink.b, 1f);
+        RenderSettings.fog = false;
+
+        foreach (Renderer r in FindObjectsOfType<Renderer>())
+        {
+            if (!r.enabled || r.transform.IsChildOf(root.transform) || r.GetComponentInParent<LaserPointer>() != null)
+            {
+                continue;
+            }
+
+            r.enabled = false;
+            hiddenRenderers.Add(r);
+        }
+
+        foreach (Canvas c in FindObjectsOfType<Canvas>())
+        {
+            if (c.enabled && c.GetComponentInParent<LaserPointer>() == null)
+            {
+                c.enabled = false;
+                hiddenCanvases.Add(c);
+            }
+        }
+    }
+
+    private void OnDestroy()
+    {
+        // Only matters if the rig outlives the Lane; the Lane's own objects go with the scene.
+        if (hiddenFor != null)
+        {
+            hiddenFor.clearFlags = savedClear;
+            hiddenFor.backgroundColor = savedBackground;
+            RenderSettings.fog = savedFog;
+        }
+
+        foreach (Renderer r in hiddenRenderers)
+        {
+            if (r != null) r.enabled = true;
+        }
+
+        foreach (Canvas c in hiddenCanvases)
+        {
+            if (c != null) c.enabled = true;
+        }
+    }
+
+    /// <summary>
+    /// Keeps the screen in front like a flat display: the player can look around a little, but once
+    /// the head turns past <see cref="FollowAngle"/> (or walks away) the pages glide back in front.
+    /// </summary>
+    private void FollowGaze()
+    {
+        Camera cam = Camera.main;
+
+        if (cam == null || root == null)
+        {
+            return;
+        }
+
+        Vector3 flat = Vector3.ProjectOnPlane(cam.transform.forward, Vector3.up);
+
+        if (flat.sqrMagnitude < 0.01f)
+        {
+            return;
+        }
+
+        flat.Normalize();
+        Vector3 wanted = PanelPosition(cam, flat);
+        float angle = Vector3.Angle(flat, root.transform.forward);
+        float drift = Vector3.Distance(wanted, root.transform.position);
+
+        if (angle > FollowAngle || drift > 0.8f)
+        {
+            recentering = true;
+        }
+
+        if (!recentering)
+        {
+            return;
+        }
+
+        float k = 1f - Mathf.Exp(-4f * Time.unscaledDeltaTime);
+        root.transform.position = Vector3.Lerp(root.transform.position, wanted, k);
+        root.transform.rotation = Quaternion.Slerp(root.transform.rotation, Quaternion.LookRotation(flat, Vector3.up), k);
+
+        if (angle < 2f && drift < 0.05f)
+        {
+            recentering = false;
         }
     }
 
@@ -776,36 +947,6 @@ public class ResultScreen : MonoBehaviour
         text.fontSizeMin = size.y * 2f;
         text.characterSpacing = 4f;
         text.rectTransform.sizeDelta = size - new Vector2(0.06f, 0f);
-    }
-
-    /// <summary>
-    /// How far in front of the player the panel can float without anything solid in between: the
-    /// usual 2.1 m, or just short of the first wall, window or block, never closer than 0.8 m.
-    /// The player's own hands, weapon and body are ignored.
-    /// </summary>
-    private static float ClearDistance(Camera cam, Vector3 flat)
-    {
-        Vector3 origin = cam.transform.position;
-        float distance = PanelDistance;
-
-        foreach (RaycastHit hit in Physics.RaycastAll(origin, flat, PanelDistance + 0.3f, ~0, QueryTriggerInteraction.Ignore))
-        {
-            if (hit.distance < 0.35f || hit.transform.root == cam.transform.root)
-            {
-                continue;
-            }
-
-            string layer = LayerMask.LayerToName(hit.collider.gameObject.layer);
-
-            if (layer == "PlayerBody" || layer == "Minion" || layer == "Soul" || layer == "Rival")
-            {
-                continue;
-            }
-
-            distance = Mathf.Min(distance, hit.distance - 0.3f);
-        }
-
-        return Mathf.Clamp(distance, 0.8f, PanelDistance);
     }
 
     private IEnumerator PopIn()
