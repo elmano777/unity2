@@ -134,7 +134,7 @@ public static class DeadlockHeroStats
             a.damagePerSecond = 35f;
             a.tickInterval = 0.3f;
             a.damage = 0f;
-            a.cooldown = 30f;
+            a.cooldown = 90f; // was 30: too much damage for how often it came back (playtest 2026-11-14)
             a.channelArmor = 0f;
             // Wiki: T1 +55 % bullet resist while channelling (here: -12 to each hit, about half a rival
             // bullet); T2 +7 s channel, +10 m final and +5 m initial radius (x0.86 time, x0.6 radius);
@@ -184,7 +184,7 @@ public static class DeadlockHeroStats
             a.tint = new Color(0.72f, 0.42f, 1f, 1f);
             a.shape = AbilityShape.Line;
             a.castRange = 70f;
-            a.damage = 120f;
+            a.damage = 480f; // was 120 (+300 %, playtest 2026-11-14: it barely hurt)
             a.chargeSeconds = 1f;
             a.unchargedDamage = 0.5f;
             a.pierce = true;

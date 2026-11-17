@@ -23,7 +23,7 @@ MonoBehaviour:
   loopSeconds: 2.5
   effectPrefab: {fileID: 0}
   tint: {r: 0.62, g: 0.75, b: 1, a: 1}
-  cooldown: 30
+  cooldown: 90
   duration: 0
   travelTime: 0
   shape: 5

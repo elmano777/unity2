@@ -1208,8 +1208,9 @@ public static partial class DeadlockExpandedMap
         if (full != null && weak != null)
         {
             float scale = king ? HiddenKingScale : ArchmotherScale;
-            GameObject normalForm = ModelForm(t, "NormalForm", full, scale, Vector3.zero);
-            GameObject weakForm = ModelForm(t, "WeakForm", weak, scale, new Vector3(0f, 7.5f, 0f));
+            // Yaw 0: the patron models already face +Z, so the usual 180° turned them towards their own base.
+            GameObject normalForm = ModelForm(t, "NormalForm", full, scale, Vector3.zero, 0f);
+            GameObject weakForm = ModelForm(t, "WeakForm", weak, scale, new Vector3(0f, 7.5f, 0f), 0f);
             weakForm.SetActive(false);
 
             // A collider on the dais' centre so locomotion walks around the patron, not through it.
@@ -1255,7 +1256,7 @@ public static partial class DeadlockExpandedMap
     }
 
     /// <summary>A model instance under <paramref name="parent"/>, turned to face the parent's forward (the models face -Z).</summary>
-    private static GameObject ModelForm(Transform parent, string name, GameObject model, float scale, Vector3 offset)
+    private static GameObject ModelForm(Transform parent, string name, GameObject model, float scale, Vector3 offset, float yaw = 180f)
     {
         var holder = new GameObject(name);
         holder.transform.SetParent(parent, false);
@@ -1263,7 +1264,7 @@ public static partial class DeadlockExpandedMap
 
         var instance = (GameObject)PrefabUtility.InstantiatePrefab(model, holder.transform);
         instance.transform.localPosition = Vector3.zero;
-        instance.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
+        instance.transform.localRotation = Quaternion.Euler(0f, yaw, 0f);
         instance.transform.localScale = Vector3.one * scale;
         StaticizeSkins(instance);
         OpaqueMaterials(instance);

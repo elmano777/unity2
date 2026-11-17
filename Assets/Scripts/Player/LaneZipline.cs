@@ -31,7 +31,7 @@ public class LaneZipline : MonoBehaviour
     [SerializeField] private float startFraction = 0.04f;
 
     [Tooltip("The rope never reaches closer than this to your base, nor further than the max, however the lane goes.")]
-    [SerializeField] private Vector2 reachRange = new Vector2(0.12f, 0.8f);
+    [SerializeField] private Vector2 reachRange = new Vector2(0.38f, 0.8f); // 0.38: always as far as your own Guardian (before, 0.12 barely left the base)
 
     [Tooltip("How fast the rope's free end grows or shrinks, in metres per second.")]
     [SerializeField] private float endSpeed = 5f;
@@ -44,8 +44,25 @@ public class LaneZipline : MonoBehaviour
     [Tooltip("Where the rope ends near the rival's patron, as a fraction of the lane. Visible always, usable only up to the reach.")]
     [SerializeField] private float endFraction = 0.96f;
 
+    [Tooltip("Rope nearer than this to where you stand can't be grabbed (stops re-grabbing it on arrival), in metres.")]
+    [SerializeField] private float minRideDistance = 8f;
+
+    [Tooltip("How close (horizontally) to the rope you must stand for the grip to grab it, in metres.")]
+    [SerializeField] private float grabRadius = 10f; // the spawn is ~9 m from the rope
+
+    [Tooltip("Metres of rope from your own patron that count as your base: from inside it the rope only takes you forward.")]
+    [SerializeField] private float homeZone = 40f;
+
     private LineRenderer lockedRope;
     private bool aimedLocked;
+
+    // The left hand stays up on the rope while riding.
+    private Transform handVisual;
+    private Vector3 handRestPosition;
+    private Quaternion handRestRotation;
+    private bool handOnRope;
+    private Vector3 handRopePosition;
+    private Quaternion handRopeRotation;
 
     private OVRCameraRig rig;
     private ComfortLocomotion locomotion;
@@ -70,6 +87,9 @@ public class LaneZipline : MonoBehaviour
     private bool riding;
     private bool wasRiding;
     private bool aimedAtRope;
+    private float rideTarget;
+    private Vector3 grabPoint;
+    private bool needsRelease;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
     private static void Bootstrap()
@@ -99,6 +119,7 @@ public class LaneZipline : MonoBehaviour
 
         hold = new InputAction("Zipline", InputActionType.Button);
         hold.AddBinding("<XRController>{LeftHand}/gripPressed");
+        hold.AddBinding("<XRController>{LeftHand}/{GripButton}");
         hold.AddBinding("<Keyboard>/z");
         hold.Enable();
 
@@ -129,6 +150,12 @@ public class LaneZipline : MonoBehaviour
         marker.GetComponent<Renderer>().sharedMaterial = new Material(Shader.Find("Sprites/Default")) { color = Aimed };
         marker.gameObject.SetActive(false);
     }
+
+    private void OnEnable() => Application.onBeforeRender += ApplyHand;
+
+    private void OnDisable() => Application.onBeforeRender -= ApplyHand;
+
+    private void LateUpdate() => ApplyHand();
 
     private void OnDestroy()
     {
@@ -319,53 +346,129 @@ public class LaneZipline : MonoBehaviour
     private void Ride()
     {
         float start = StartDistance();
-        Transform hand = rig.leftControllerAnchor != null ? rig.leftControllerAnchor : rig.centerEyeAnchor;
         Transform head = rig.centerEyeAnchor;
 
-        // The editor key aims with the view; the headset aims with the left controller.
-        Transform aimer = Keyboard.current != null && Keyboard.current.zKey.isPressed ? head : hand;
-        bool latched = TryAim(aimer, start, out float aimedAlong);
-        aimedAtRope = latched;
+        float hereNow = Along(head.position);
 
-        aimedLocked = latched && aimedAlong > reach;
+        // While riding the target was fixed on grabbing: no need to keep pointing at the rope.
+        float aimedAlong = rideTarget;
+        bool latched = riding;
+        string refusal = null;
+
+        if (!riding)
+        {
+            // No aiming (it was a headache in the headset): standing under or next to the rope is
+            // enough. The ride goes the way you look along it: on to the end of the usable rope, or
+            // back to your base.
+            Vector3 under = RopePoint(Mathf.Clamp(hereNow, start, laneLength));
+            Vector3 offset = under - head.position;
+            offset.y = 0f;
+            latched = offset.magnitude <= grabRadius && hereNow >= start - grabRadius && hereNow <= reach + grabRadius;
+
+            if (latched)
+            {
+                float along = Mathf.Clamp(hereNow, start, laneLength);
+                Vector3 tangent = RopePoint(Mathf.Min(along + 2f, laneLength)) - RopePoint(Mathf.Max(along - 2f, 0f));
+                Vector3 look = head.forward;
+                tangent.y = look.y = 0f;
+                bool forward = Vector3.Dot(look, tangent) >= 0f;
+                aimedAlong = forward ? reach : start;
+
+                if (Mathf.Abs(aimedAlong - hereNow) < minRideDistance)
+                {
+                    latched = false;
+                    refusal = forward ? "La cuerda no llega más allá. Avanza con tus minions." : "Ya estás al inicio de la cuerda.";
+                }
+                else if (!forward && hereNow < homeZone)
+                {
+                    // From the base only out of it, to the lane; coming back in from the lane is fine.
+                    latched = false;
+                    refusal = "Desde tu base la tirolesa solo va hacia adelante: mira hacia el carril.";
+                }
+            }
+            else if (offset.magnitude <= grabRadius * 2f && hereNow <= reach)
+            {
+                refusal = "Ponte debajo de la cuerda y aprieta el grip izquierdo.";
+            }
+
+            grabPoint = under;
+        }
+
+        aimedAtRope = latched;
+        aimedLocked = !riding && latched && aimedAlong > reach;
         marker.gameObject.SetActive(latched && rope.enabled);
 
         if (latched)
         {
-            marker.position = RopePoint(aimedAlong);
+            // The glowing bead sits on the rope right above you: "you can grab it here".
+            marker.position = riding ? RopePoint(hereNow) : grabPoint;
             marker.GetComponent<Renderer>().sharedMaterial.color = aimedLocked ? Denied : Aimed;
         }
 
+        bool pressed = hold.WasPressedThisFrame();
+
+        if (!hold.IsPressed())
+        {
+            needsRelease = false;
+        }
+
         // Past the front line the rope can be seen but not ridden: the lane has to be won first.
-        if (aimedLocked && hold.WasPressedThisFrame())
+        if (pressed && aimedLocked)
+        {
+            refusal = "La cuerda aún no llega hasta allí. Avanza con tus minions.";
+        }
+
+        if (pressed && !riding && refusal != null)
         {
             HapticFeedback.Pulse(HapticFeedback.Hand.Left, 0.5f, 0.15f);
-            GameEvents.RaiseHint("La cuerda aún no llega hasta allí. Avanza con tus minions.");
+            ExperienceCues.Play(ExperienceCues.NotReady, 0.4f);
+            GameEvents.RaiseHint(refusal);
             CancelInvoke(nameof(ClearHint));
             Invoke(nameof(ClearHint), 3f);
         }
 
-        riding = latched && !aimedLocked && hold.IsPressed() && MatchRunning();
+        bool canAct = MatchRunning() && !InputGate.Blocked;
+
+        if (!riding)
+        {
+            // A fresh grab: holding the grip from before (or from the last ride) doesn't start one.
+            if (latched && !aimedLocked && hold.IsPressed() && !needsRelease && canAct)
+            {
+                riding = true;
+                rideTarget = aimedLocked ? reach : aimedAlong;
+                aimedAlong = rideTarget;
+            }
+        }
+        else
+        {
+            // The rope may shrink under the rider when the rival pushes: stop where it ends.
+            rideTarget = Mathf.Min(rideTarget, Mathf.Max(reach, start));
+            aimedAlong = rideTarget;
+
+            bool arrived = Mathf.Abs(aimedAlong - hereNow) <= 0.8f;
+
+            if (!hold.IsPressed() || !canAct || arrived)
+            {
+                riding = false;
+
+                // Arrived with the grip still held: it has to be let go before the next ride.
+                needsRelease = hold.IsPressed();
+            }
+        }
 
         if (riding && route != null)
         {
-            // Slide along the curved rope towards the aimed point, easing sideways onto the line.
-            float here = Along(head.position);
-
-            if (Mathf.Abs(aimedAlong - here) > 0.8f)
-            {
-                float next = Mathf.MoveTowards(here, aimedAlong, rideSpeed * Time.deltaTime);
-                Vector3 step = RopePoint(next) - RopePoint(here);
-                Vector3 lateral = RopePoint(here) - head.position;
-                step.y = lateral.y = 0f;
-                rig.transform.position += step + lateral * Mathf.Clamp01(3f * Time.deltaTime);
-            }
-
+            // Slide along the curved rope towards the target, easing sideways onto the line.
+            float next = Mathf.MoveTowards(hereNow, aimedAlong, rideSpeed * Time.deltaTime);
+            Vector3 step = RopePoint(next) - RopePoint(hereNow);
+            Vector3 lateral = RopePoint(hereNow) - head.position;
+            step.y = lateral.y = 0f;
+            rig.transform.position += step + lateral * Mathf.Clamp01(3f * Time.deltaTime);
             HapticFeedback.Pulse(HapticFeedback.Hand.Left, 0.12f, 0.05f);
         }
         else if (riding)
         {
-            // Pull the head towards the point on the rope that is being aimed at.
+            // Pull the head towards the target point on the rope.
             Vector3 target = homePoint + axis * aimedAlong;
             Vector3 toTarget = target - head.position;
             toTarget.y = 0f;
@@ -378,6 +481,21 @@ public class LaneZipline : MonoBehaviour
 
             HapticFeedback.Pulse(HapticFeedback.Hand.Left, 0.12f, 0.05f);
         }
+
+        if (riding)
+        {
+            // The hand holds on to the rope just ahead of the rider until the button is let go.
+            float here = Along(head.position);
+            float sign = aimedAlong >= here ? 1f : -1f;
+            float lo = 0f, hi = laneLength;
+            Vector3 grab = RopePoint(Mathf.Clamp(here + sign * 1.5f, lo, hi));
+            Vector3 tangent = RopePoint(Mathf.Clamp(here + sign * 3f, lo, hi)) - RopePoint(Mathf.Clamp(here, lo, hi));
+            handRopePosition = grab;
+            handRopeRotation = tangent.sqrMagnitude > 1e-4f ? Quaternion.LookRotation(tangent.normalized, Vector3.up) : Quaternion.identity;
+        }
+
+        handOnRope = riding;
+        ApplyHand();
 
         if (locomotion != null)
         {
@@ -399,6 +517,42 @@ public class LaneZipline : MonoBehaviour
         }
 
         SetRideLoop(riding);
+    }
+
+    /// <summary>
+    /// Pins the left hand's model to the rope while riding and gives it back to the controller when
+    /// let go. Also runs just before render, after the rig has moved the anchors to the newest pose.
+    /// </summary>
+    private void ApplyHand()
+    {
+        if (handVisual == null)
+        {
+            if (rig == null || rig.leftControllerAnchor == null)
+            {
+                return;
+            }
+
+            ControllerHand hand = rig.leftControllerAnchor.GetComponentInChildren<ControllerHand>(true);
+
+            if (hand == null)
+            {
+                return;
+            }
+
+            handVisual = hand.transform;
+            handRestPosition = handVisual.localPosition;
+            handRestRotation = handVisual.localRotation;
+        }
+
+        if (handOnRope)
+        {
+            handVisual.SetPositionAndRotation(handRopePosition, handRopeRotation);
+        }
+        else
+        {
+            handVisual.localPosition = handRestPosition;
+            handVisual.localRotation = handRestRotation;
+        }
     }
 
     private AudioSource rideLoop;

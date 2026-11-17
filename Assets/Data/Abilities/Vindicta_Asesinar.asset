@@ -28,7 +28,7 @@ MonoBehaviour:
   duration: 0
   travelTime: 0
   shape: 3
-  damage: 120
+  damage: 480
   radius: 0
   castRange: 70
   travelSpeed: 6

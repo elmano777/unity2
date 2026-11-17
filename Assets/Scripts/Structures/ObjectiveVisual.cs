@@ -104,5 +104,13 @@ public class ObjectiveVisual : MonoBehaviour
         }
 
         transform.SetPositionAndRotation(start + Vector3.down * sinkDepth, tilted);
+
+        // Sunk and dark is still a figure standing there if it is taller than the sink: remove it.
+        yield return new WaitForSeconds(0.5f);
+
+        foreach (Renderer r in GetComponentsInChildren<Renderer>(true))
+        {
+            r.enabled = false;
+        }
     }
 }

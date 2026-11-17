@@ -117,6 +117,118 @@ public class ResultScreen : MonoBehaviour
         dislike = Action("Dislike", "<Keyboard>/2");
         next = Action("Next", "<Keyboard>/rightArrow");
         previous = Action("Previous", "<Keyboard>/leftArrow");
+
+        // The Lane has no menu laser, so its buttons could not be pressed (no way to reach the
+        // scoreboard): aim either hand at one and pull the trigger, or flick a stick to turn the page.
+        pressRight = Action("PressRight", "<XRController>{RightHand}/triggerPressed", "<XRController>{RightHand}/{TriggerButton}");
+        pressLeft = Action("PressLeft", "<XRController>{LeftHand}/triggerPressed", "<XRController>{LeftHand}/{TriggerButton}");
+        sticks = new InputAction("Sticks", InputActionType.PassThrough);
+        sticks.AddBinding("<XRController>{RightHand}/{Primary2DAxis}");
+        sticks.AddBinding("<XRController>{LeftHand}/{Primary2DAxis}");
+        sticks.Enable();
+    }
+
+    private InputAction pressRight, pressLeft, sticks;
+    private bool stickHeld;
+    private LineRenderer pointer;
+
+    /// <summary>A stick pushed right or left past half way turns the page once, until it comes back.</summary>
+    private void StickPages()
+    {
+        float x = 0f;
+
+        foreach (InputControl control in sticks.controls)
+        {
+            if (control is UnityEngine.InputSystem.Controls.Vector2Control stick)
+            {
+                float value = stick.ReadValue().x;
+                if (Mathf.Abs(value) > Mathf.Abs(x)) x = value;
+            }
+        }
+
+        if (!stickHeld && Mathf.Abs(x) > 0.6f)
+        {
+            stickHeld = true;
+            ShowPage(x > 0f ? 1 : 0);
+        }
+        else if (Mathf.Abs(x) < 0.3f)
+        {
+            stickHeld = false;
+        }
+    }
+
+    /// <summary>A beam from the right hand to the panel; the trigger presses the button it touches.</summary>
+    private void PointAndPress()
+    {
+        OVRCameraRig rig = FindObjectOfType<OVRCameraRig>();
+
+        if (rig == null)
+        {
+            return;
+        }
+
+        Transform aimRight = rig.rightControllerAnchor;
+        Transform aimLeft = rig.leftControllerAnchor;
+        WorldButton hovered = ButtonUnder(aimRight, out Vector3 end);
+
+        if (pointer == null)
+        {
+            pointer = new GameObject("ResultPointer").AddComponent<LineRenderer>();
+            pointer.sharedMaterial = new Material(Shader.Find("Sprites/Default"));
+            pointer.positionCount = 2;
+            pointer.widthMultiplier = 0.004f;
+            pointer.numCapVertices = 2;
+            pointer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            pointer.sortingOrder = 32000;
+        }
+
+        if (aimRight != null)
+        {
+            Color c = hovered != null ? new Color(1f, 0.9f, 0.5f, 0.95f) : new Color(0.7f, 0.85f, 1f, 0.45f);
+            pointer.startColor = c;
+            pointer.endColor = new Color(c.r, c.g, c.b, c.a * 0.4f);
+            pointer.SetPosition(0, aimRight.position);
+            pointer.SetPosition(1, end);
+        }
+
+        if (pressRight.WasPressedThisFrame() && hovered != null)
+        {
+            hovered.Press();
+        }
+
+        if (pressLeft.WasPressedThisFrame())
+        {
+            WorldButton left = ButtonUnder(aimLeft, out _);
+            if (left != null) left.Press();
+        }
+    }
+
+    private WorldButton ButtonUnder(Transform aim, out Vector3 end)
+    {
+        end = aim != null ? aim.position + aim.forward * 4f : Vector3.zero;
+
+        if (aim == null || root == null)
+        {
+            return null;
+        }
+
+        RaycastHit[] hits = Physics.RaycastAll(aim.position, aim.forward, 8f, ~0, QueryTriggerInteraction.Collide);
+        WorldButton best = null;
+        float bestDistance = float.MaxValue;
+
+        foreach (RaycastHit hit in hits)
+        {
+            WorldButton button = hit.collider.GetComponent<WorldButton>();
+
+            if (button != null && button.transform.IsChildOf(root.transform) && button.gameObject.activeInHierarchy && hit.distance < bestDistance)
+            {
+                best = button;
+                bestDistance = hit.distance;
+                end = hit.point;
+            }
+        }
+
+        return best;
     }
 
     private static InputAction Action(string name, params string[] bindings)
@@ -136,10 +248,12 @@ public class ResultScreen : MonoBehaviour
     {
         GameEvents.MatchStateChanged -= OnMatchState;
 
-        foreach (InputAction action in new[] { again, leave, like, dislike, next, previous })
+        foreach (InputAction action in new[] { again, leave, like, dislike, next, previous, pressRight, pressLeft, sticks })
         {
             action?.Dispose();
         }
+
+        if (pointer != null) Destroy(pointer.gameObject);
     }
 
     private void Update()
@@ -155,6 +269,8 @@ public class ResultScreen : MonoBehaviour
         if (dislike.WasPressedThisFrame()) Vote(MatchVote.Dislike);
         if (next.WasPressedThisFrame()) ShowPage(1);
         if (previous.WasPressedThisFrame()) ShowPage(0);
+        StickPages();
+        PointAndPress();
         if (again.WasPressedThisFrame()) PlayAgain();
         if (leave.WasPressedThisFrame()) Leave();
     }

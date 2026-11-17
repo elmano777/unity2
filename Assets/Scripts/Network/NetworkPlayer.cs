@@ -172,6 +172,14 @@ public class NetworkPlayer : NetworkBehaviour
         }
 
         bodyHealth.HealthChanged += OnBodyHealthChanged;
+
+        // The rival gets a health bar over the head, so a face-to-face fight shows who is winning.
+        if (!IsOwner && bodyHealth.GetComponentInChildren<HealthBar>(true) == null)
+        {
+            HealthBar bar = HealthBar.CreateOver(bodyHealth, bodyHealth.transform, new Vector3(0f, 0.8f, 0f));
+            Vector3 s = bodyHealth.transform.lossyScale;
+            bar.transform.localScale = new Vector3(1f / Mathf.Max(0.01f, s.x), 1f / Mathf.Max(0.01f, s.y), 1f / Mathf.Max(0.01f, s.z));
+        }
     }
 
     /// <summary>The Lane's own PlayerBody (the camera capsule from the single-player scene) would be a second body.</summary>
@@ -213,7 +221,9 @@ public class NetworkPlayer : NetworkBehaviour
         }
         else if (visualRoot != null)
         {
-            visualRoot.SetActive(alive);
+            // The rival stays where it fell as a grey ghost until it respawns (it used to just vanish).
+            visualRoot.SetActive(true);
+            DeathView.SetGhost(visualRoot, !alive);
         }
     }
 

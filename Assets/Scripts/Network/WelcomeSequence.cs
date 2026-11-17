@@ -42,7 +42,16 @@ public class WelcomeSequence : MonoBehaviour
         {
             matchmaker.StatusChanged -= OnStatus;
         }
+
+        // Left the Lane mid-welcome: hands free again.
+        if (holdingInput)
+        {
+            holdingInput = false;
+            InputGate.Release();
+        }
     }
+
+    private bool holdingInput;
 
     private void OnStatus(DuelMatchmaker.Status status, string detail)
     {
@@ -66,6 +75,10 @@ public class WelcomeSequence : MonoBehaviour
             running = false;
             yield break;
         }
+
+        // From the black screen to the fade back in, the trigger only moves the welcome on.
+        holdingInput = true;
+        InputGate.Hold();
 
         if (fader != null)
         {
@@ -98,6 +111,12 @@ public class WelcomeSequence : MonoBehaviour
         if (fader != null)
         {
             yield return fader.FadeIn();
+        }
+
+        if (holdingInput)
+        {
+            holdingInput = false;
+            InputGate.Release();
         }
 
         running = false;

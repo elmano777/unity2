@@ -171,7 +171,8 @@ public class ComfortLocomotion : MonoBehaviour
             return;
         }
 
-        Walk(move.ReadValue<Vector2>());
+        // Down: the hero stays where it fell until it respawns (turning on the spot is still allowed).
+        Walk(InputGate.LocalDown ? Vector2.zero : move.ReadValue<Vector2>());
         SnapTurn(turn.ReadValue<Vector2>().x);
         FollowGround();
     }

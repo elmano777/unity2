@@ -36,6 +36,10 @@ public class PlayerUpgrades : MonoBehaviour
     private float quietHeal;
 
     private readonly Dictionary<ShopItemSO, int> stacks = new Dictionary<ShopItemSO, int>();
+    private readonly List<ShopItemSO> owned = new List<ShopItemSO>();
+
+    /// <summary>Items bought, one entry each, in the order they were first bought (the HUD's item row).</summary>
+    public IReadOnlyList<ShopItemSO> Owned => owned;
     private readonly int[] invested = new int[3];
 
     private float closeBonus;
@@ -266,6 +270,7 @@ public class PlayerUpgrades : MonoBehaviour
 
         float bonusBefore = InvestmentBonus(item.category);
 
+        if (!owned.Contains(item)) owned.Add(item);
         stacks[item] = Stacks(item) + 1;
         invested[(int)item.category] += item.cost;
 

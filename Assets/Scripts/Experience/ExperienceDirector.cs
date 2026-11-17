@@ -441,6 +441,23 @@ public class ExperienceDirector : MonoBehaviour
 
     private void FindPlayerHealth()
     {
+        // Online the real body is the local NetworkPlayer's; the layer search could find the rig's old
+        // capsule first, which never takes damage (no hit sounds, no "you fell" countdown).
+        NetworkPlayer local = NetworkPlayer.Local;
+
+        if (local != null && local.Body != null && playerHealth != local.Body)
+        {
+            if (playerHealth != null)
+            {
+                playerHealth.HealthChanged -= OnHealthChanged;
+            }
+
+            playerHealth = local.Body;
+            lastHealth = playerHealth.CurrentHealth;
+            playerHealth.HealthChanged += OnHealthChanged;
+            return;
+        }
+
         if (playerHealth != null || Time.time < nextHealthSearch)
         {
             return;

@@ -59,7 +59,18 @@ public class AbilityCaster : MonoBehaviour
 
         if (hero != null && hero.abilities != null)
         {
-            abilities = hero.abilities;
+            // A copy: SetTier swaps in upgraded abilities, and writing them into the hero asset's own
+            // array changed the asset (upgrades piled up and, after Play, it pointed at a destroyed copy).
+            abilities = (AbilitySO[])hero.abilities.Clone();
+
+            for (int i = 0; i < abilities.Length; i++)
+            {
+                if (abilities[i] != null && abilities[i].upgradedFrom != null)
+                {
+                    abilities[i] = abilities[i].upgradedFrom;
+                    hero.abilities[i] = abilities[i];
+                }
+            }
         }
 
         readyAt = new float[abilities.Length];
@@ -111,7 +122,7 @@ public class AbilityCaster : MonoBehaviour
 
     private void OnPress(int index)
     {
-        if (index >= abilities.Length || abilities[index] == null)
+        if (index >= abilities.Length || abilities[index] == null || InputGate.Blocked)
         {
             return;
         }
