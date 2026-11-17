@@ -1,6 +1,7 @@
 using System;
 using TMPro;
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 /// <summary>
 /// The hero's level and ability points, as in the original game: every soul collected (spent or not)
@@ -80,12 +81,8 @@ public class HeroProgression : MonoBehaviour
         caster = FindObjectOfType<AbilityCaster>();
         hero = caster != null ? caster.Hero : GameSession.Instance != null ? GameSession.Instance.SelectedHero : null;
 
-        WristHud wrist = FindObjectOfType<WristHud>(true);
-
-        if (wrist != null)
-        {
-            panel = UpgradePanel.Build(wrist.transform, this);
-        }
+        // The panel no longer hangs off the wrist display (PlayerHud turns that off, so it never showed).
+        panel = UpgradePanel.Build(this);
 
         Publish();
     }
@@ -122,7 +119,9 @@ public class HeroProgression : MonoBehaviour
         ExperienceCues.Play(ExperienceCues.ShopUpgrade, 0.9f);
         HapticFeedback.Pulse(HapticFeedback.Hand.Left, 0.5f, 0.15f);
         HapticFeedback.Pulse(HapticFeedback.Hand.Right, 0.5f, 0.15f);
-        GameEvents.RaiseHint($"¡Nivel {Level}! Tienes {Points} punto{(Points == 1 ? "" : "s")} de habilidad: mira tu muñeca y dispara a una mejora.");
+        // No panel popping up mid-fight: the "!" by the view says there is a point, the stick click opens it.
+        GameEvents.RaiseHint($"¡Nivel {Level}! Tienes {Points} punto{(Points == 1 ? "" : "s")} de habilidad: hunde el stick izquierdo para abrir las mejoras.");
+        if (panel != null) panel.Refresh();
         MatchStatsRecorder.LogEvent("level_up", Level.ToString());
         Publish();
     }
@@ -133,8 +132,25 @@ public class HeroProgression : MonoBehaviour
     public int Tier(int index) => index >= 0 && index < AbilitySlots ? tiers[index] : 0;
 
     /// <summary>The ability as the asset defines it (before upgrades).</summary>
-    public AbilitySO BaseAbility(int index) =>
-        hero != null && hero.abilities != null && index >= 0 && index < hero.abilities.Length ? hero.abilities[index] : null;
+    public AbilitySO BaseAbility(int index)
+    {
+        AbilitySO ability = hero != null && hero.abilities != null && index >= 0 && index < hero.abilities.Length ? hero.abilities[index] : null;
+        return ability != null && ability.upgradedFrom != null ? ability.upgradedFrom : ability;
+    }
+
+    /// <summary>True when some ability has an upgrade the points can pay for now.</summary>
+    public bool CanUpgradeAny()
+    {
+        for (int i = 0; i < AbilitySlots; i++)
+        {
+            if (CanUpgrade(i)) return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>True while the upgrade panel is open (the HUD hides its "!" then).</summary>
+    public bool PanelOpen => panel != null && panel.IsOpen;
 
     /// <summary>Points the next upgrade of ability <paramref name="index"/> costs, or 0 when it has none left.</summary>
     public int NextCost(int index)
@@ -213,27 +229,44 @@ public class HeroProgression : MonoBehaviour
         private float armedUntil;
         private float messageUntil;
 
-        public static UpgradePanel Build(Transform wrist, HeroProgression owner)
+        private bool open;
+        private InputAction toggle;
+        private Transform head;
+        private Vector3 smoothForward = Vector3.forward;
+        private const float Distance = 0.9f, Below = 0.12f, PanelScale = 2.6f;
+
+        public static UpgradePanel Build(HeroProgression owner)
         {
+            // A free-standing panel in front of the player, opened with the left stick click
+            // (the grips are the zipline and the gun) or the U key in the editor.
+            // Under a holder so the "!" badge can sit beside it without inheriting the panel's scale.
+            var holder = new GameObject("AbilityUpgrades");
             var go = new GameObject("AbilityUpgradePanel");
-            go.transform.SetParent(wrist, false);
-            // Just above the wrist display, in its plane (it faces the eyes when the wrist is raised).
-            go.transform.localPosition = new Vector3(0f, 0.15f, 0f);
-            go.transform.localRotation = Quaternion.identity;
+            go.transform.SetParent(holder.transform, false);
+            go.transform.localScale = Vector3.one * PanelScale;
 
             UpgradePanel panel = go.AddComponent<UpgradePanel>();
+            panel.toggle = new InputAction("UpgradePanel", InputActionType.Button);
+            panel.toggle.AddBinding("<XRController>{LeftHand}/{Primary2DAxisClick}");
+            panel.toggle.AddBinding("<Keyboard>/u");
+            panel.toggle.performed += _ => panel.Toggle();
+            panel.toggle.Enable();
             panel.owner = owner;
-            panel.root = go;
+
+            // The content is a child so it can be switched off while this keeps listening to the button.
+            var content = new GameObject("Content");
+            content.transform.SetParent(go.transform, false);
+            panel.root = content;
 
             Material back = new Material(Shader.Find("Sprites/Default")) { color = new Color(0.05f, 0.04f, 0.08f, 0.88f) };
-            Quad(go.transform, new Vector3(0f, 0.005f, 0.004f), new Vector2(0.3f, 0.15f), back);
+            Quad(content.transform, new Vector3(0f, 0.005f, 0.004f), new Vector2(0.3f, 0.15f), back);
 
-            panel.header = Label(go.transform, new Vector3(0f, 0.062f, 0f), new Vector2(0.28f, 0.025f), 0.12f, new Color(1f, 0.85f, 0.4f));
+            panel.header = Label(content.transform, new Vector3(0f, 0.062f, 0f), new Vector2(0.28f, 0.025f), 0.12f, new Color(1f, 0.85f, 0.4f));
             panel.cards = new UpgradeCard[AbilitySlots];
 
             for (int i = 0; i < AbilitySlots; i++)
             {
-                panel.cards[i] = UpgradeCard.Build(go.transform, panel, i, new Vector3(i == 0 ? -0.072f : 0.072f, -0.008f, 0f));
+                panel.cards[i] = UpgradeCard.Build(content.transform, panel, i, new Vector3(i == 0 ? -0.072f : 0.072f, -0.008f, 0f));
             }
 
             panel.Refresh();
@@ -244,6 +277,144 @@ public class HeroProgression : MonoBehaviour
         private void OnDestroy()
         {
             if (owner != null) owner.Changed -= Refresh;
+            toggle?.Dispose();
+            if (badge != null) Destroy(badge.gameObject);
+        }
+
+        public bool IsOpen => open && root != null && root.activeSelf;
+
+        private void Toggle()
+        {
+            if (InputGate.Blocked || MatchManager.IsOver)
+            {
+                return;
+            }
+
+            open = !open;
+
+            // Opens where the player is looking, not where it was last left.
+            if (open) head = null;
+
+            ExperienceCues.Play("shop_select", open ? 0.6f : 0.35f);
+            Refresh();
+        }
+
+        // ---- The "!" that says a point is waiting ----
+
+        private Transform badge;
+        private Material badgeDisc;
+        private TextMeshPro badgeHint;
+        private Vector3 badgeForward = Vector3.forward;
+
+        /// <summary>A small gold disc with "!" low and to the left of the view, and what opens the panel.</summary>
+        private void BuildBadge()
+        {
+            badge = new GameObject("UpgradeBadge").transform;
+            badge.SetParent(transform.parent, false);
+
+            badgeDisc = new Material(Shader.Find("Sprites/Default")) { color = new Color(1f, 0.78f, 0.2f, 1f), mainTexture = DiscTexture() };
+            Quad(badge, new Vector3(0f, 0f, 0.002f), new Vector2(0.075f, 0.075f), badgeDisc, 3);
+
+            TextMeshPro mark = Label(badge, Vector3.zero, new Vector2(0.075f, 0.075f), 0.6f, new Color(0.12f, 0.07f, 0.02f, 1f));
+            mark.text = "<b>!</b>";
+            mark.enableAutoSizing = false;
+            mark.fontSize = 0.6f;
+
+            badgeHint = Label(badge, new Vector3(0f, -0.06f, 0f), new Vector2(0.22f, 0.04f), 0.2f, new Color(1f, 0.85f, 0.4f, 1f));
+            badgeHint.text = "MEJORA · stick izq.";
+            badge.gameObject.SetActive(false);
+        }
+
+        private void UpdateBadge()
+        {
+            if (badge == null)
+            {
+                BuildBadge();
+            }
+
+            bool show = !open && owner != null && owner.CanUpgradeAny() && !MatchManager.IsOver;
+
+            if (badge.gameObject.activeSelf != show)
+            {
+                badge.gameObject.SetActive(show);
+            }
+
+            Camera camera = Camera.main;
+
+            if (!show || camera == null)
+            {
+                return;
+            }
+
+            Transform eyes = camera.transform;
+            Vector3 facing = Vector3.ProjectOnPlane(eyes.forward, Vector3.up);
+
+            if (facing.sqrMagnitude > 0.01f)
+            {
+                badgeForward = Vector3.Slerp(badgeForward, facing.normalized, 1f - Mathf.Exp(-4f * Time.deltaTime));
+            }
+
+            // About 22° to the left and 14° under the horizon at 1.1 m: seen without covering the lane.
+            Vector3 direction = Quaternion.AngleAxis(-22f, Vector3.up) * badgeForward;
+            Vector3 position = eyes.position + direction * 1.1f + Vector3.down * 0.27f;
+            float pulse = 1f + 0.08f * Mathf.Sin(Time.time * 5f);
+            badge.SetPositionAndRotation(position, Quaternion.LookRotation(position - eyes.position, Vector3.up));
+            badge.localScale = Vector3.one * pulse;
+        }
+
+        private static Texture2D discTexture;
+
+        private static Texture2D DiscTexture()
+        {
+            if (discTexture != null) return discTexture;
+
+            const int size = 64;
+            discTexture = new Texture2D(size, size, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
+
+            for (int y = 0; y < size; y++)
+            {
+                for (int x = 0; x < size; x++)
+                {
+                    float d = new Vector2(x + 0.5f - size / 2f, y + 0.5f - size / 2f).magnitude / (size / 2f);
+                    discTexture.SetPixel(x, y, new Color(1f, 1f, 1f, Mathf.Clamp01((1f - d) * size * 0.5f)));
+                }
+            }
+
+            discTexture.Apply();
+            return discTexture;
+        }
+
+        private void LateUpdate()
+        {
+            UpdateBadge();
+
+            if (!open || root == null || !root.activeSelf)
+            {
+                return;
+            }
+
+            if (head == null)
+            {
+                Camera camera = Camera.main;
+
+                if (camera == null)
+                {
+                    return;
+                }
+
+                head = camera.transform;
+                smoothForward = Vector3.ProjectOnPlane(head.forward, Vector3.up).normalized;
+            }
+
+            Vector3 facing = Vector3.ProjectOnPlane(head.forward, Vector3.up);
+
+            if (facing.sqrMagnitude > 0.01f)
+            {
+                smoothForward = Vector3.Slerp(smoothForward, facing.normalized, 1f - Mathf.Exp(-3f * Time.deltaTime));
+            }
+
+            Vector3 position = head.position + smoothForward * Distance + Vector3.down * Below;
+            transform.SetPositionAndRotation(position, Quaternion.LookRotation(position - head.position, Vector3.up));
         }
 
         public void OnCardShot(int index)
@@ -286,7 +457,7 @@ public class HeroProgression : MonoBehaviour
 
         public void Refresh()
         {
-            bool show = owner.Points > 0 && !MatchManager.IsOver;
+            bool show = open && !MatchManager.IsOver;
             root.SetActive(show);
 
             if (!show)
@@ -297,8 +468,7 @@ public class HeroProgression : MonoBehaviour
 
             header.text = Time.time < messageUntil
                 ? "Faltan puntos"
-                : $"NIVEL {owner.Level}  ·  {owner.Points} PUNTO{(owner.Points == 1 ? "" : "S")}  ·  dispara 2 veces";
-
+                : $"NIVEL {owner.Level}  ·  {owner.Points} PUNTO{(owner.Points == 1 ? "" : "S")}  ·  dispara 2 veces  ·  stick izq. = cerrar";
             for (int i = 0; i < cards.Length; i++)
             {
                 cards[i].Show(owner, i, armed == i);

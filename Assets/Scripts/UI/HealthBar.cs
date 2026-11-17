@@ -27,6 +27,66 @@ public class HealthBar : MonoBehaviour
     [Tooltip("Optional second row (the patron's two bars): with it, the top row is the first half of the health and empties first, this one the second half.")]
     [SerializeField] private Transform secondFillPivot;
 
+    /// <summary>
+    /// Builds a bar at runtime over <paramref name="target"/> (for the rival's body, which is spawned
+    /// from a prefab that has none). Always visible, red, turned to the viewer every frame.
+    /// </summary>
+    public static HealthBar CreateOver(Health target, Transform parent, Vector3 localOffset, float width = 0.7f, float height = 0.07f)
+    {
+        var root = new GameObject("RivalHealthBar");
+        root.transform.SetParent(parent, false);
+        root.transform.localPosition = localOffset;
+
+        var visual = new GameObject("Visual");
+        visual.transform.SetParent(root.transform, false);
+
+        Shader shader = Shader.Find("Sprites/Default");
+        MakeQuad("Back", visual.transform, Vector3.zero, new Vector3(width + 0.02f, height + 0.02f, 1f), new Color(0.03f, 0.03f, 0.05f, 0.9f), shader, 0);
+
+        var pivot = new GameObject("FillPivot").transform;
+        pivot.SetParent(visual.transform, false);
+        pivot.localPosition = new Vector3(-width / 2f, 0f, -0.001f);
+        MakeQuad("Fill", pivot, new Vector3(width / 2f, 0f, 0f), new Vector3(width, height, 1f), new Color(0.95f, 0.22f, 0.2f, 1f), shader, 1);
+
+        HealthBar bar = root.AddComponent<HealthBar>();
+        bar.OnDisable(); // Awake/OnEnable ran before the fields were set
+        bar.health = target;
+        bar.fillPivot = pivot;
+        bar.visual = visual;
+        bar.alwaysVisible = true;
+        bar.Hook();
+        return bar;
+    }
+
+    private static void MakeQuad(string name, Transform parent, Vector3 position, Vector3 scale, Color color, Shader shader, int order)
+    {
+        GameObject quad = GameObject.CreatePrimitive(PrimitiveType.Quad);
+        quad.name = name;
+        Destroy(quad.GetComponent<Collider>());
+        quad.transform.SetParent(parent, false);
+        quad.transform.localPosition = position;
+        quad.transform.localScale = scale;
+        Renderer renderer = quad.GetComponent<Renderer>();
+        renderer.sharedMaterial = new Material(shader) { color = color };
+        renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        renderer.sortingOrder = order;
+    }
+
+    private bool hooked;
+
+    private void Hook()
+    {
+        if (health == null || hooked)
+        {
+            return;
+        }
+
+        hooked = true;
+        health.HealthChanged += OnHealthChanged;
+        health.Killed += OnKilled;
+        OnHealthChanged(health.CurrentHealth, health.MaxHealth);
+    }
+
     private void Awake()
     {
         if (health == null)
@@ -35,25 +95,16 @@ public class HealthBar : MonoBehaviour
         }
     }
 
-    private void OnEnable()
-    {
-        if (health == null)
-        {
-            return;
-        }
-
-        health.HealthChanged += OnHealthChanged;
-        health.Killed += OnKilled;
-        OnHealthChanged(health.CurrentHealth, health.MaxHealth);
-    }
+    private void OnEnable() => Hook();
 
     private void OnDisable()
     {
-        if (health == null)
+        if (health == null || !hooked)
         {
             return;
         }
 
+        hooked = false;
         health.HealthChanged -= OnHealthChanged;
         health.Killed -= OnKilled;
     }

@@ -49,6 +49,9 @@ public class Structure : MonoBehaviour
     [Tooltip("Shown while the structure is shielded because an earlier one of its side still stands.")]
     [SerializeField] private GameObject shield;
 
+    [Tooltip("Seconds after falling before the wreck is hidden (long enough for the fall animation and blast).")]
+    [SerializeField] private float hideDelay = 3f;
+
     private Health health;
     private bool replicaLocked;
     private bool hasReplicaState;
@@ -202,6 +205,25 @@ public class Structure : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// After the fall animation and the blast, the figure goes away: a destroyed tower left standing
+    /// (even dark) read as one that had not been beaten.
+    /// </summary>
+    private System.Collections.IEnumerator HideWreck()
+    {
+        yield return new WaitForSeconds(hideDelay);
+
+        foreach (Renderer r in GetComponentsInChildren<Renderer>(true))
+        {
+            r.enabled = false;
+        }
+
+        foreach (Collider c in GetComponentsInChildren<Collider>(true))
+        {
+            c.enabled = false;
+        }
+    }
+
     private void OnKilled(DamageInfo info)
     {
         standing.Remove(this);
@@ -228,6 +250,11 @@ public class Structure : MonoBehaviour
         if (destructionClip != null)
         {
             AudioSource.PlayClipAtPoint(destructionClip, transform.position);
+        }
+
+        if (gameObject.activeInHierarchy)
+        {
+            StartCoroutine(HideWreck());
         }
 
         if (isPatron)

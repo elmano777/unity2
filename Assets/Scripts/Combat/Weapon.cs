@@ -200,10 +200,38 @@ public class Weapon : MonoBehaviour
             activeFireAction.performed += OnFirePerformed;
             activeFireAction.Enable();
         }
+
+        // Reload by hand: click the right stick (R in the editor).
+        if (useDefaultBindings && reloadAction == null)
+        {
+            reloadAction = new InputAction("Reload", InputActionType.Button);
+            reloadAction.AddBinding("<XRController>{RightHand}/{Primary2DAxisClick}");
+            reloadAction.AddBinding("<XRController>{RightHand}/thumbstickClicked");
+            reloadAction.AddBinding("<Keyboard>/r");
+            reloadAction.performed += OnReloadPerformed;
+            reloadAction.Enable();
+        }
+    }
+
+    private InputAction reloadAction;
+
+    private void OnReloadPerformed(InputAction.CallbackContext context)
+    {
+        if (!InputGate.Blocked && !MatchManager.IsOver)
+        {
+            Reload();
+        }
     }
 
     private void OnDisable()
     {
+        if (reloadAction != null)
+        {
+            reloadAction.performed -= OnReloadPerformed;
+            reloadAction.Dispose();
+            reloadAction = null;
+        }
+
         if (activeFireAction == null)
         {
             return;
@@ -267,7 +295,8 @@ public class Weapon : MonoBehaviour
     public bool TryFire()
     {
         // Turned into a storm (Seven's ultimate): no gun until it ends.
-        if (!CanFire || AbilityCaster.LocalChanneling || MatchManager.IsOver)
+        // The welcome is on screen: the trigger moves the dialog on, it doesn't shoot.
+        if (!CanFire || AbilityCaster.LocalChanneling || MatchManager.IsOver || InputGate.Blocked)
         {
             return false;
         }

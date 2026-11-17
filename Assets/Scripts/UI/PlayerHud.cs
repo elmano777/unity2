@@ -77,6 +77,17 @@ public class PlayerHud : MonoBehaviour
     private TMP_Text[] abilityCharges = System.Array.Empty<TMP_Text>();
     private TMP_Text[] abilityTimers = System.Array.Empty<TMP_Text>();
     private Renderer[] abilityRings = System.Array.Empty<Renderer>();
+    private Renderer[] abilityChargeBadges = System.Array.Empty<Renderer>();
+    private static readonly Color ChargeBadgeColor = new Color(0.55f, 0.3f, 0.85f, 1f);
+
+    // The item row under the panel: one square per item bought, up to twelve (Deadlock's item slots).
+    private const int ItemSlots = 12;
+    private const float ItemSize = 0.095f, ItemGap = 0.012f, ItemRowY = -Height / 2f - 0.085f;
+    private readonly Renderer[] itemIcons = new Renderer[ItemSlots];
+    private readonly Renderer[] itemFrames = new Renderer[ItemSlots];
+    private readonly TMP_Text[] itemStacks = new TMP_Text[ItemSlots];
+    private readonly TMP_Text[] itemInitials = new TMP_Text[ItemSlots];
+    private static readonly Color EmptySlot = new Color(0.13f, 0.15f, 0.22f, 0.9f);
 
     private Renderer[] all = System.Array.Empty<Renderer>();
     private TMP_Text[] allText = System.Array.Empty<TMP_Text>();
@@ -159,6 +170,7 @@ public class PlayerHud : MonoBehaviour
         BuildAmmo();
         BuildAbilities();
         BuildHealth();
+        BuildItems();
 
         all = root.GetComponentsInChildren<Renderer>(true);
         allText = root.GetComponentsInChildren<TMP_Text>(true);
@@ -215,6 +227,7 @@ public class PlayerHud : MonoBehaviour
         abilityCharges = new TMP_Text[count];
         abilityTimers = new TMP_Text[count];
         abilityRings = new Renderer[count];
+        abilityChargeBadges = new Renderer[count];
         wasCooling = new bool[count];
 
         for (int i = 0; i < count; i++)
@@ -244,13 +257,13 @@ public class PlayerHud : MonoBehaviour
             abilityShadeRenderers[i] = shade.GetComponent<Renderer>();
             abilityTimers[i] = Text(string.Empty, centre + new Vector3(0f, 0f, -0.002f), 0.055f, Color.white, new Vector2(IconSize, IconSize), FontStyles.Bold);
 
-            // Charges left, in a small badge at the top right of the icon (only for multi-charge abilities).
-            if (ability != null && ability.charges > 1)
-            {
-                Vector3 badge = centre + new Vector3(IconSize * 0.42f, IconSize * 0.42f, -0.003f);
-                Quad("ChargeBadge" + i, badge + new Vector3(0f, 0f, 0.001f), new Vector2(0.036f, 0.036f), new Color(0.55f, 0.3f, 0.85f, 1f), Disc());
-                abilityCharges[i] = Text(ability.charges.ToString(), badge, 0.026f, Color.white, new Vector2(0.036f, 0.036f), FontStyles.Bold);
-            }
+            // Charges left, in a small badge at the top right of the icon. Built for every ability and
+            // shown only while it holds more than one charge: an upgrade can add charges mid-match
+            // (Assassinate 1 -> 2), and a badge missing then broke the whole panel's refresh.
+            Vector3 badge = centre + new Vector3(IconSize * 0.42f, IconSize * 0.42f, -0.003f);
+            GameObject badgeGo = Quad("ChargeBadge" + i, badge + new Vector3(0f, 0f, 0.001f), new Vector2(0.036f, 0.036f), ChargeBadgeColor, Disc());
+            abilityChargeBadges[i] = badgeGo.GetComponent<Renderer>();
+            abilityCharges[i] = Text(string.Empty, badge, 0.026f, Color.white, new Vector2(0.036f, 0.036f), FontStyles.Bold);
 
             string key = i < AbilityCaster.ButtonNames.Length ? AbilityCaster.ButtonNames[i] : "?";
             Quad("KeyBack" + i, centre + new Vector3(0f, -IconSize / 2f - 0.025f, 0f), new Vector2(0.034f, 0.034f), new Color(0.85f, 0.88f, 0.95f, 1f));
@@ -268,6 +281,60 @@ public class PlayerHud : MonoBehaviour
 
         healthText = Text("—", new Vector3(RightX, HealthBarBottom - 0.04f, 0f), 0.065f, Color.white, new Vector2(0.2f, 0.06f), FontStyles.Bold);
         healthMax = Text(string.Empty, new Vector3(RightX, HealthBarBottom - 0.085f, 0f), 0.035f, new Color(0.75f, 0.8f, 0.9f, 1f), new Vector2(0.2f, 0.04f), FontStyles.Normal);
+    }
+
+    /// <summary>Under the panel: a strip of twelve squares, filled with the items bought in order.</summary>
+    private void BuildItems()
+    {
+        float rowWidth = ItemSlots * ItemSize + (ItemSlots - 1) * ItemGap;
+        Quad("ItemsBack", new Vector3(0f, ItemRowY, 0.004f), new Vector2(rowWidth + 0.03f, ItemSize + 0.03f), Panel);
+
+        for (int i = 0; i < ItemSlots; i++)
+        {
+            float x = -rowWidth / 2f + ItemSize / 2f + i * (ItemSize + ItemGap);
+            Vector3 centre = new Vector3(x, ItemRowY, 0f);
+
+            // Frame in the item's category colour, a dark square inside, the icon on top.
+            itemFrames[i] = Quad("ItemFrame" + i, centre + new Vector3(0f, 0f, 0.002f), Vector2.one * ItemSize, EmptySlot).GetComponent<Renderer>();
+            Quad("ItemInner" + i, centre + new Vector3(0f, 0f, 0.001f), Vector2.one * (ItemSize - 0.01f), new Color(0.06f, 0.07f, 0.11f, 1f));
+            itemIcons[i] = Quad("ItemIcon" + i, centre, Vector2.one * (ItemSize - 0.018f), Color.clear).GetComponent<Renderer>();
+            itemInitials[i] = Text(string.Empty, centre, 0.04f, Color.white, Vector2.one * ItemSize, FontStyles.Bold);
+
+            itemStacks[i] = Text(string.Empty, centre + new Vector3(ItemSize * 0.3f, -ItemSize * 0.32f, 0f), 0.026f, Color.white, new Vector2(0.04f, 0.03f), FontStyles.Bold);
+        }
+    }
+
+    private static Color CategoryColor(ShopCategory category) =>
+        category == ShopCategory.Weapon ? WeaponYellow : category == ShopCategory.Vitality ? VitalityGreen : SpiritPurple;
+
+    private void RefreshItems(PlayerUpgrades upgrades)
+    {
+        System.Collections.Generic.IReadOnlyList<ShopItemSO> owned = upgrades != null ? upgrades.Owned : null;
+
+        for (int i = 0; i < ItemSlots; i++)
+        {
+            ShopItemSO item = owned != null && i < owned.Count ? owned[i] : null;
+            Material icon = itemIcons[i].sharedMaterial;
+
+            if (item == null)
+            {
+                itemFrames[i].sharedMaterial.color = EmptySlot;
+                icon.color = Color.clear;
+                icon.mainTexture = null;
+                itemInitials[i].text = string.Empty;
+                itemStacks[i].text = string.Empty;
+                continue;
+            }
+
+            itemFrames[i].sharedMaterial.color = CategoryColor(item.category);
+            Texture texture = item.icon != null ? item.icon.texture : null;
+            icon.mainTexture = texture;
+            icon.color = texture != null ? Color.white : Color.clear;
+            itemInitials[i].text = texture == null && !string.IsNullOrEmpty(item.itemName) ? item.itemName.Substring(0, 1).ToUpperInvariant() : string.Empty;
+
+            int count = upgrades.Stacks(item);
+            itemStacks[i].text = count > 1 ? "x" + count : string.Empty;
+        }
     }
 
     private GameObject Quad(string name, Vector3 local, Vector2 size, Color color, Texture texture = null)
@@ -393,6 +460,16 @@ public class PlayerHud : MonoBehaviour
     /// <summary>Watches health, reloads and cooldowns so the panel comes up when something changes.</summary>
     private void Track()
     {
+        // Online the body is the one on the local NetworkPlayer; the layer search below could pick the
+        // rig's old capsule, which never takes damage, and the bar would not move.
+        NetworkPlayer mine = NetworkPlayer.Local;
+
+        if (mine != null && mine.Body != null && body != mine.Body)
+        {
+            body = mine.Body;
+            lastHealth = -1f;
+        }
+
         if (body == null && Time.time >= nextBodySearch)
         {
             nextBodySearch = Time.time + 1f;
@@ -495,6 +572,8 @@ public class PlayerHud : MonoBehaviour
             statLabels[i].text = $"+{Mathf.RoundToInt(bonus * 100f)}%";
         }
 
+        RefreshItems(upgrades);
+
         // Magazine.
         if (weapon != null && weapon.MagazineSize > 0)
         {
@@ -528,10 +607,10 @@ public class PlayerHud : MonoBehaviour
                 float wait = caster.CooldownRemaining(i);
                 float total = caster.CooldownTotal(i);
 
-                if (ability.charges > 1)
-                {
-                    abilityCharges[i].text = caster.Charges(i).ToString();
-                }
+                bool multi = ability.charges > 1;
+                abilityCharges[i].text = multi ? caster.Charges(i).ToString() : string.Empty;
+                abilityChargeBadges[i].sharedMaterial.color = multi ? ChargeBadgeColor : Color.clear;
+
                 float left = wait > 0f ? Mathf.Clamp01(wait / total) : 0f;
                 bool charging = caster.ChargeAmount > 0f && ability.chargeSeconds > 0f && wait <= 0f;
                 bool channeling = caster.IsChanneling && caster.ChannelingIndex == i;

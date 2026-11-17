@@ -276,6 +276,16 @@ public class MatchTopBar : MonoBehaviour
 
     private void FindBodies()
     {
+        // Online the body is the local NetworkPlayer's, which spawns a moment after the Lane loads. The
+        // search below finds the rig's old capsule first (also on PlayerBody), which never takes damage,
+        // and the bar stayed full: swap to the real body as soon as it exists.
+        NetworkPlayer local = NetworkPlayer.Local;
+
+        if (local != null && local.Body != null && mine.health != local.Body)
+        {
+            mine.health = local.Body;
+        }
+
         if (mine.health == null)
         {
             if (NetworkPlayer.Local != null && NetworkPlayer.Local.Body != null)

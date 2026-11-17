@@ -634,16 +634,62 @@ public class MinionAgent : MonoBehaviour
         int index = reverseLane ? lane.ReverseIndex(waypointIndex) : waypointIndex;
         Vector3 destination = lane.GetPoint(index);
 
-        MoveToward(destination);
-        lanePosition = transform.position;
-
         Vector3 flat = destination - transform.position;
         flat.y = 0f;
+
+        // The lane ends at the rival's gate, but their base guardians, shrines and patron stand further
+        // in, out of sight (detection is 8 m): the wave used to stop at the gate once the Walker fell.
+        // Past the last waypoint, march on to the nearest objective that can be hit now.
+        if (waypointIndex >= lane.Count - 1 && flat.magnitude <= Mathf.Max(definition.waypointTolerance, 2f) + pushingSlack)
+        {
+            Structure objective = NearestOpenObjective();
+
+            if (objective != null)
+            {
+                destination = objective.transform.position;
+                flat = Vector3.zero;
+                pushingSlack = 1000f; // stay in this mode while the objective stands
+            }
+        }
+        else if (waypointIndex < lane.Count - 1)
+        {
+            pushingSlack = 0f;
+        }
+
+        MoveToward(destination);
+        lanePosition = transform.position;
 
         if (flat.magnitude <= definition.waypointTolerance && waypointIndex < lane.Count - 1)
         {
             waypointIndex++;
         }
+    }
+
+    private float pushingSlack;
+
+    /// <summary>The nearest of the rival's structures that is not shielded, or null.</summary>
+    private Structure NearestOpenObjective()
+    {
+        Structure best = null;
+        float bestDistance = float.MaxValue;
+
+        foreach (Structure structure in Structure.Standing)
+        {
+            if (structure == null || !FactionUtility.IsHostile(faction, structure.Faction) || structure.IsLocked)
+            {
+                continue;
+            }
+
+            float distance = (structure.transform.position - transform.position).sqrMagnitude;
+
+            if (distance < bestDistance)
+            {
+                best = structure;
+                bestDistance = distance;
+            }
+        }
+
+        return best;
     }
 
     private void Chase()
