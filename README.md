@@ -128,7 +128,7 @@ El informe final (LaTeX/PDF) se entregó por Canvas.
 ### Flujo de la aplicación
 
 ```mermaid
-flowchart LR
+flowchart TD
     I[Intro] --> G[Garage<br/>bola de la vidente]
     G -- Partida online --> S[Crear o elegir sala]
     G -- Mi misión --> H[Selección de héroe]
