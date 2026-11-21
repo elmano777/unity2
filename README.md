@@ -186,15 +186,25 @@ sequenceDiagram
 ```text
 unity2/
 ├── Assets/
-│   ├── Scripts/      Código del juego (12 módulos)
+│   ├── Scripts/      Código del juego (12 módulos, 108 scripts)
 │   ├── Editor/       Menú Deadlock/Setup (construcción de escenas) y herramientas de depuración
 │   ├── Data/         Héroes, habilidades, minions y objetos (ScriptableObjects)
-│   └── Scenes/       Intro, TitleScreen, HeroSelect, Lane
+│   ├── Scenes/       Intro, TitleScreen, HeroSelect, Lane
+│   ├── Prefabs/      Héroes, minions, objetivos, armas, efectos, interfaz y objetos de red
+│   ├── Models/       Modelos 3D (.glb) de héroes, minions, estructuras, armas y props
+│   ├── Art/          Materiales, texturas, shaders, íconos de habilidades y arte de la tienda
+│   ├── Audio/        Música, voces de los héroes, sonidos de combate y ambiente
+│   ├── Resources/    Sonidos y ajustes que se cargan durante la partida
+│   └── Settings/     Perfiles de render (URP) y acciones de entrada
+├── Packages/         Dependencias del proyecto (manifest.json)
+├── ProjectSettings/  Configuración de Unity: XR, build y servicios de Relay y Lobby
 ├── Tools/            Scripts de Blender y .blend de esqueletos, animaciones y props
 ├── docs/             Manual de instalación y despliegue, e imágenes del README
 ├── CLAUDE.md         Notas técnicas detalladas del desarrollo
 └── README.md
 ```
+
+Las carpetas `Assets/XR`, `Assets/Plugins` y `Assets/TextMesh Pro` las crean los paquetes de Unity y no se editan a mano.
 
 ## Evaluación con usuarios
 
