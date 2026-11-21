@@ -34,7 +34,7 @@ crashlytics-build.properties
 RuntimeActionBindings.json
 Assets/StreamingAssets/RuntimeActionBindings.json*
 
-# Report screenshots
+# Capturas del menu Deadlock/Screenshots (material de trabajo, no se versiona)
 /Capturas/
 
 # Ruido que Unity reescribe solo (ver CLAUDE.md)
@@ -43,4 +43,3 @@ Assets/StreamingAssets/RuntimeActionBindings.json*
 /ProjectSettings/ShaderGraphSettings.asset
 /ProjectSettings/URPProjectSettings.asset
 *.vsconfig
-/Build/

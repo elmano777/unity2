@@ -36,7 +36,6 @@ Versión del 21 de noviembre de 2026
 | `Assets/Data` | Héroes, habilidades, minions y objetos de la tienda como *ScriptableObjects* (el balance se ajusta sin tocar código) |
 | `Assets/Scenes` | Las cuatro escenas del juego |
 | `Tools` | Scripts de Blender y archivos `.blend` de esqueletos, animaciones y props |
-| `Capturas` | Capturas de cada avance usadas en los informes |
 | `docs` | Este manual e imágenes del README |
 | `README.md` · `CLAUDE.md` | Presentación del proyecto · notas técnicas detalladas (orden de los pasos de Setup, decisiones y problemas) |
 

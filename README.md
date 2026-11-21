@@ -74,8 +74,10 @@ El informe final (LaTeX/PDF) se entregó por Canvas.
 
 | | |
 |:---:|:---:|
-| ![Garage](docs/img/garage.jpg) | ![Panel del jugador](docs/img/panel_jugador.jpg) |
-| El garage: al golpear la bola aparecen los modos de juego | Panel del jugador: almas, munición, habilidades y vida |
+| ![Garage](docs/img/garage.jpg) | ![Selección de héroe](docs/img/seleccion_heroe.jpg) |
+| El garage: al golpear la bola aparecen los modos de juego | Selección de héroe: Seven o Vindicta |
+| ![Mapa](docs/img/mapa.jpg) | ![Panel del jugador](docs/img/panel_jugador.jpg) |
+| El mapa de noche, con carteles de neón | Panel del jugador: almas, munición, habilidades y vida |
 | ![Objetivos con escudo](docs/img/objetivos.jpg) | ![Tienda](docs/img/tienda.jpg) |
 | Objetivos protegidos por el escudo dorado | La tienda: se compra con dos disparos |
 | ![Pantalla final](docs/img/pantalla_final.jpg) | ![Prueba con usuarios](docs/img/prueba_usuarios.jpg) |
@@ -189,7 +191,6 @@ unity2/
 │   ├── Data/         Héroes, habilidades, minions y objetos (ScriptableObjects)
 │   └── Scenes/       Intro, TitleScreen, HeroSelect, Lane
 ├── Tools/            Scripts de Blender y .blend de esqueletos, animaciones y props
-├── Capturas/         Capturas usadas en los informes de cada avance
 ├── docs/             Manual de instalación y despliegue, e imágenes del README
 ├── CLAUDE.md         Notas técnicas detalladas del desarrollo
 └── README.md
@@ -280,7 +281,7 @@ El proyecto se construyó en cinco entregables incrementales. Cada uno se probó
 - Esqueleto y animaciones para los héroes, la torre Guardián (que apunta antes de disparar) y los seis minions. El Medic pelea y, al morir, suelta un orbe que cura a quien lo eliminó.
 - Sonido ambiente propio en cada escena.
 
-**Pruebas.** Mi misión se probó con el Quest en el laboratorio. El duelo online se verificó con el editor como anfitrión y un cliente de Windows, y luego se demostró en vivo en clase. Capturas en `Capturas/Entrega3`.
+**Pruebas.** Mi misión se probó con el Quest en el laboratorio. El duelo online se verificó con el editor como anfitrión y un cliente de Windows, y luego se demostró en vivo en clase.
 
 [Video del avance 3](https://drive.google.com/drive/folders/1HYkEiQKu8cs_IuhzPMskc_Ofp67i7_Os?usp=sharing)
 </details>
@@ -304,7 +305,7 @@ El proyecto se construyó en cinco entregables incrementales. Cada uno se probó
 
 **Mi misión.** Se agregó un paso para usar una habilidad, y el último paso recuerda la tienda.
 
-**Pruebas.** Se verificaron en el editor la cadena con escudos, la victoria, las compras y la tienda rival. Mi misión, las habilidades y la tienda se probaron con el Quest en el laboratorio. Capturas en `Capturas/Entrega4`.
+**Pruebas.** Se verificaron en el editor la cadena con escudos, la victoria, las compras y la tienda rival. Mi misión, las habilidades y la tienda se probaron con el Quest en el laboratorio.
 
 [Video del avance 4](https://drive.google.com/drive/folders/16GJri4Z4-nQk6Hxok25Aae96aXfF9nmL?usp=sharing)
 </details>
