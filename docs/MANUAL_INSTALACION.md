@@ -81,9 +81,9 @@ Es el modo de desarrollo: permite probar cada cambio sin compilar. Con él se gr
 
 1. Abrir Meta Quest Link en el PC y activar **Link** desde el menú rápido del visor.
 2. En Unity, pulsar **Play**. El juego siempre arranca en `Intro`. Para jugar directamente la escena abierta, desactivar **Deadlock → Play From Title Screen**.
-3. Ponerse el visor: la imagen y los controladores ya responden.
+3. Ponerse el visor y jugar con los controles del Meta Quest 2, igual que en el APK ([sección 10](#10-controles-del-juego)).
 
-Sin visor, el editor acepta el teclado para depurar:
+**Depuración sin visor (opcional).** El juego se juega con los controles del Meta Quest 2. Solo para el desarrollo, sin el visor conectado, el editor acepta estos atajos de teclado, que no se usan en el APK:
 
 | Acción | Tecla |
 |---|---|
